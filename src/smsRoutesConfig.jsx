@@ -358,11 +358,10 @@ export const getSMSRoutes = () => {
           hidden: true,
         },
         {
-          name: 'Marksheet',
+          name: 'Marks Sheet',
           layout: '/admin',
           path: '/academics/results/marksheet',
           component: lazy(() => import('./modules/admin/pages/academics/ResultsMarksheet')),
-          hidden: true,
         },
         {
           name: 'Grade Calculation',

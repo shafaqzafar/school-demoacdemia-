@@ -35,6 +35,7 @@ import StudentProfile from './modules/teachers/students/StudentProfile';
 import StudentPerformance from './modules/teachers/students/StudentPerformance';
 import CreateAssignment from './modules/teachers/assignments/CreateAssignment';
 import ExamSchedule from './modules/teachers/exams/ExamSchedule';
+import MarksSheet from './modules/teachers/exams/MarksSheet';
 import WeeklyTimetable from './modules/teachers/schedule/WeeklyTimetable';
 import ApplyLeave from './modules/teachers/leaves/ApplyLeave';
 import LeaveStatus from './modules/teachers/leaves/LeaveStatus';
@@ -204,6 +205,13 @@ const teacherRoutes = [
         path: '/exams/schedule',
         icon: <Icon as={MdSchedule} width="16px" height="16px" color="inherit" />,
         component: <ExamSchedule />,
+      },
+      {
+        name: 'Marks Sheet',
+        layout: '/teacher',
+        path: '/exams/marks-sheet',
+        icon: <Icon as={MdGrade} width="16px" height="16px" color="inherit" />,
+        component: <MarksSheet />,
       },
       {
         name: 'Upload Marks',

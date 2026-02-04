@@ -28,6 +28,7 @@ import * as resultsApi from '../../../../services/api/results';
 import * as examsApi from '../../../../services/api/exams';
 import * as studentsApi from '../../../../services/api/students';
 import * as gradingApi from '../../../../services/api/grading';
+import * as classesApi from '../../../../services/api/classes';
 
 const safeFilePart = (v) => String(v || '').replace(/[^a-z0-9\-_. ]/gi, '').trim().replace(/\s+/g, '_');
 
@@ -65,12 +66,24 @@ export default function ResultsMarksheet() {
   const initialStudentId = qs.get('studentId') || '';
   const initialExamId = qs.get('examId') || '';
 
+  const [classRows, setClassRows] = useState([]);
+  const [selectedClassKey, setSelectedClassKey] = useState('');
+
+  const selectedClass = useMemo(() => {
+    if (!selectedClassKey) return null;
+    const [className, section] = selectedClassKey.split('::');
+    return { className, section };
+  }, [selectedClassKey]);
+
   const [examId, setExamId] = useState(initialExamId);
   const [studentId, setStudentId] = useState(initialStudentId);
 
   const [studentQuery, setStudentQuery] = useState('');
   const [studentOptions, setStudentOptions] = useState([]);
   const [loadingStudents, setLoadingStudents] = useState(false);
+
+  const [studentsInClass, setStudentsInClass] = useState([]);
+  const [loadingClassStudents, setLoadingClassStudents] = useState(false);
 
   const [student, setStudent] = useState(null);
 
@@ -82,10 +95,50 @@ export default function ResultsMarksheet() {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
 
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await classesApi.list({ page: 1, pageSize: 500 });
+        const dataset = Array.isArray(res?.rows) ? res.rows : Array.isArray(res) ? res : [];
+        const normalized = dataset
+          .map((r) => ({
+            className: r.className || r.name || r.title || '',
+            section: r.section || r.sectionName || '',
+          }))
+          .filter((r) => r.className && r.section);
+
+        const unique = new Map();
+        normalized.forEach((r) => unique.set(`${r.className}::${r.section}`, r));
+        const list = Array.from(unique.values()).sort((a, b) => {
+          const c = String(a.className).localeCompare(String(b.className));
+          if (c !== 0) return c;
+          return String(a.section).localeCompare(String(b.section));
+        });
+
+        if (!mounted) return;
+        setClassRows(list);
+        if (!selectedClassKey && list.length) {
+          setSelectedClassKey(`${list[0].className}::${list[0].section}`);
+        }
+      } catch (_) {
+        if (!mounted) return;
+        setClassRows([]);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [selectedClassKey]);
+
   const loadExams = useCallback(async () => {
     try {
       setLoadingExams(true);
-      const res = await examsApi.list({ pageSize: 200 });
+      const res = await examsApi.list({
+        pageSize: 200,
+        className: selectedClass?.className,
+        section: selectedClass?.section,
+      });
       const items = Array.isArray(res?.items) ? res.items : Array.isArray(res) ? res : [];
       setExams(items);
     } catch (_) {
@@ -93,11 +146,43 @@ export default function ResultsMarksheet() {
     } finally {
       setLoadingExams(false);
     }
-  }, []);
+  }, [selectedClass]);
 
   useEffect(() => {
     loadExams();
   }, [loadExams]);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      if (!selectedClass?.className || !selectedClass?.section) {
+        setStudentsInClass([]);
+        return;
+      }
+      setLoadingClassStudents(true);
+      try {
+        const res = await studentsApi.list({
+          page: 1,
+          pageSize: 200,
+          class: selectedClass.className,
+          section: selectedClass.section,
+        });
+        const list = Array.isArray(res?.rows) ? res.rows : Array.isArray(res) ? res : [];
+        if (!mounted) return;
+        setStudentsInClass(list);
+      } catch (_) {
+        if (!mounted) return;
+        setStudentsInClass([]);
+      } finally {
+        if (!mounted) return;
+        setLoadingClassStudents(false);
+      }
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, [selectedClass]);
 
   useEffect(() => {
     let mounted = true;
@@ -150,7 +235,12 @@ export default function ResultsMarksheet() {
           } catch (_) {}
         }
         if (!results.length) {
-          const res = await studentsApi.list({ q, pageSize: 10 });
+          const res = await studentsApi.list({
+            q,
+            pageSize: 10,
+            class: selectedClass?.className,
+            section: selectedClass?.section,
+          });
           const items = Array.isArray(res?.rows) ? res.rows : (res?.items || res || []);
           results = items;
         }
@@ -184,7 +274,7 @@ export default function ResultsMarksheet() {
         examId: Number(examId),
         studentId: Number(studentId),
         page: 1,
-        pageSize: 2000,
+        pageSize: 200,
       });
       const items = Array.isArray(res?.items) ? res.items : Array.isArray(res) ? res : [];
       setRows(items);
@@ -345,9 +435,49 @@ export default function ResultsMarksheet() {
 
       <Card p={4} mb={5}>
         <Flex gap={3} direction={{ base: 'column', md: 'row' }} align={{ md: 'center' }}>
+          <Select
+            placeholder="Class"
+            value={selectedClassKey}
+            onChange={(e) => {
+              setSelectedClassKey(e.target.value);
+              setExamId('');
+              setStudentId('');
+              setStudentQuery('');
+              setStudentOptions([]);
+              setRows([]);
+            }}
+            maxW="260px"
+            size="sm"
+            isDisabled={!classRows.length}
+          >
+            {classRows.map((c) => (
+              <option key={`${c.className}::${c.section}`} value={`${c.className}::${c.section}`}>
+                {c.className}-{c.section}
+              </option>
+            ))}
+          </Select>
+
           <Select placeholder="Exam" value={examId} onChange={(e) => setExamId(e.target.value)} maxW="260px" size="sm" isLoading={loadingExams}>
             {exams.map((ex) => (
               <option key={ex.id} value={ex.id}>{ex.title || `Exam #${ex.id}`}</option>
+            ))}
+          </Select>
+
+          <Select
+            placeholder="Student"
+            value={studentId}
+            onChange={(e) => {
+              setStudentId(e.target.value.replace(/[^0-9]/g, ''));
+            }}
+            maxW="320px"
+            size="sm"
+            isLoading={loadingClassStudents}
+            isDisabled={!studentsInClass.length && !loadingClassStudents}
+          >
+            {studentsInClass.map((st) => (
+              <option key={st.id} value={st.id}>
+                {st.name}{st.rollNumber ? ` (${st.rollNumber})` : ''}
+              </option>
             ))}
           </Select>
 
