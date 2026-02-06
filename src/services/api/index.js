@@ -14,4 +14,5 @@ export * as dashboardApi from './dashboard';
 export * as masterDataApi from './masterData';
 export * as qrAttendanceApi from './qrAttendance';
 export * as sharedContentApi from './sharedContent';
+export * as marksApi from './marks';
 export { http, setAuthToken, setUnauthorizedHandler } from '../http';

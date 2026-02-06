@@ -32,6 +32,19 @@ import {
   selectStudentFormData,
 } from '../../../../redux/features/students/studentSlice';
 
+const toDateInputValue = (value) => {
+  if (!value) return '';
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
+    const d = new Date(trimmed);
+    return Number.isNaN(d.getTime()) ? '' : d.toISOString().slice(0, 10);
+  }
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? '' : d.toISOString().slice(0, 10);
+};
+
 function PersonalInfoForm() {
   const dispatch = useAppDispatch();
   const formData = useAppSelector(selectStudentFormData);
@@ -173,7 +186,7 @@ function PersonalInfoForm() {
           <FormLabel>Date of Birth</FormLabel>
           <Input
             type="date"
-            value={personalInfo.dateOfBirth || ''}
+            value={toDateInputValue(personalInfo.dateOfBirth)}
             onChange={(e) => handleInputChange('dateOfBirth', e.target.value)}
           />
         </FormControl>
@@ -213,7 +226,6 @@ function PersonalInfoForm() {
             value={personalInfo.nationality || ''}
             onChange={(e) => handleInputChange('nationality', e.target.value)}
             placeholder="Enter nationality"
-            defaultValue="Pakistani"
           />
         </FormControl>
         

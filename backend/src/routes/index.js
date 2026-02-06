@@ -25,6 +25,7 @@ import expensesRoutes from './expenses.routes.js';
 import campusRoutes from './campuses.routes.js';
 import masterDataRoutes from './masterData.routes.js';
 import sharedContentRoutes from './sharedContent.routes.js';
+import marksRoutes from './marks.routes.js';
 
 // New module routes
 import inventoryRoutes from './inventory.routes.js';
@@ -56,6 +57,7 @@ router.use('/dashboard', dashboardRoutes);
 router.use('/classes', classRoutes);
 router.use('/syllabus', syllabusRoutes);
 router.use('/grading', gradingRoutes);
+router.use('/marks', marksRoutes);
 router.use('/rbac', rbacRoutes);
 router.use('/parents', parentsRoutes);
 router.use('/expenses', expensesRoutes);

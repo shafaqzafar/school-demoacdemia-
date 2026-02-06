@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Box,
   FormControl,
@@ -18,6 +18,7 @@ import {
   Flex,
 } from '@chakra-ui/react';
 import { useAppSelector, useAppDispatch } from '../../../../redux/hooks';
+import { classesApi } from '../../../../services/api';
 import {
   updateFormData,
   selectStudentFormData,
@@ -27,6 +28,29 @@ function AcademicInfoForm() {
   const dispatch = useAppDispatch();
   const formData = useAppSelector(selectStudentFormData);
   const academicInfo = formData.academic;
+
+  const [classSections, setClassSections] = useState([]);
+  const [loadingClassSections, setLoadingClassSections] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    setLoadingClassSections(true);
+    classesApi
+      .list({ page: 1, pageSize: 200 })
+      .then((res) => {
+        const rows = Array.isArray(res?.rows) ? res.rows : Array.isArray(res) ? res : [];
+        if (alive) setClassSections(rows);
+      })
+      .catch(() => {
+        if (alive) setClassSections([]);
+      })
+      .finally(() => {
+        if (alive) setLoadingClassSections(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
   
   // Handle input changes
   const handleInputChange = (field, value) => {
@@ -35,6 +59,32 @@ function AcademicInfoForm() {
       data: { [field]: value }
     }));
   };
+
+  const resolveClassSectionId = useCallback(
+    (cls, sec) => {
+      const c = (cls || '').trim();
+      const s = (sec || '').trim();
+      if (!c || !s) return null;
+      const found = classSections.find((row) => {
+        const cn = (row?.className || row?.name || '').trim();
+        const sn = (row?.section || '').trim();
+        return cn === c && sn === s;
+      });
+      const id = found?.id ?? found?.classSectionId;
+      if (id === undefined || id === null || id === '') return null;
+      const num = Number(id);
+      return Number.isFinite(num) ? num : null;
+    },
+    [classSections]
+  );
+
+  useEffect(() => {
+    const nextId = resolveClassSectionId(academicInfo.class, academicInfo.section);
+    if ((academicInfo.classSectionId ?? null) !== nextId) {
+      handleInputChange('classSectionId', nextId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [academicInfo.class, academicInfo.section, resolveClassSectionId]);
   
   // Handle previous education fields
   const handlePreviousEducationChange = (field, value) => {
@@ -64,6 +114,31 @@ function AcademicInfoForm() {
   };
   
   const academicYears = getCurrentAcademicYears();
+
+  const classOptions = useMemo(() => {
+    const set = new Set();
+    classSections.forEach((row) => {
+      const cn = (row?.className || row?.name || '').trim();
+      if (cn) set.add(cn);
+    });
+    const arr = Array.from(set);
+    if (arr.length) return arr;
+    return Array.from({ length: 12 }, (_, i) => `Class ${i + 1}`);
+  }, [classSections]);
+
+  const sectionOptions = useMemo(() => {
+    const selected = (academicInfo.class || '').trim();
+    if (!selected) return ['A', 'B', 'C', 'D', 'E'];
+    const set = new Set();
+    classSections.forEach((row) => {
+      const cn = (row?.className || row?.name || '').trim();
+      if (!cn || cn !== selected) return;
+      const sec = (row?.section || '').trim();
+      if (sec) set.add(sec);
+    });
+    const arr = Array.from(set);
+    return arr.length ? arr : ['A', 'B', 'C', 'D', 'E'];
+  }, [classSections, academicInfo.class]);
   
   return (
     <Box>
@@ -118,21 +193,22 @@ function AcademicInfoForm() {
           <FormLabel>Class</FormLabel>
           <Select
             value={academicInfo.class || ''}
-            onChange={(e) => handleInputChange('class', e.target.value)}
+            onChange={(e) => {
+              const nextClass = e.target.value;
+              handleInputChange('class', nextClass);
+              handleInputChange('classSectionId', null);
+              if (academicInfo.section && !sectionOptions.includes(academicInfo.section)) {
+                handleInputChange('section', '');
+              }
+            }}
             placeholder="Select class"
+            isDisabled={loadingClassSections}
           >
-            <option value="1">Class 1</option>
-            <option value="2">Class 2</option>
-            <option value="3">Class 3</option>
-            <option value="4">Class 4</option>
-            <option value="5">Class 5</option>
-            <option value="6">Class 6</option>
-            <option value="7">Class 7</option>
-            <option value="8">Class 8</option>
-            <option value="9">Class 9</option>
-            <option value="10">Class 10</option>
-            <option value="11">Class 11</option>
-            <option value="12">Class 12</option>
+            {classOptions.map((cn) => (
+              <option key={cn} value={cn}>
+                {cn}
+              </option>
+            ))}
           </Select>
         </FormControl>
         
@@ -142,12 +218,13 @@ function AcademicInfoForm() {
             value={academicInfo.section || ''}
             onChange={(e) => handleInputChange('section', e.target.value)}
             placeholder="Select section"
+            isDisabled={!academicInfo.class}
           >
-            <option value="A">A</option>
-            <option value="B">B</option>
-            <option value="C">C</option>
-            <option value="D">D</option>
-            <option value="E">E</option>
+            {sectionOptions.map((sec) => (
+              <option key={sec} value={sec}>
+                {sec}
+              </option>
+            ))}
           </Select>
         </FormControl>
         

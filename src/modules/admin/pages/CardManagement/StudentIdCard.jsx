@@ -10,6 +10,7 @@ import StatCard from '../../../../components/card/StatCard';
 import { studentApi, idCardTemplateApi, generatedIdCardApi } from '../../../../services/moduleApis';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { config } from '../../../../config/env';
 
 export default function StudentIdCard() {
     const { campusId } = useAuth();
@@ -50,19 +51,60 @@ export default function StudentIdCard() {
 
     const buildPrintableHtml = ({ title, cards }) => {
         const safe = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-        const isLikelyImageUrl = (v) => {
-            const s = String(v || '').trim();
-            if (!s) return false;
-            if (/^data:image\//i.test(s)) return true;
-            if (/^https?:\/\//i.test(s)) return true;
-            return false;
+        const getAssetBase = () => {
+            const electronBase = (typeof window !== 'undefined' && window.ELECTRON_CONFIG && window.ELECTRON_CONFIG.API_BASE_URL) ||
+                (typeof window !== 'undefined' && window.__API_BASE_URL);
+            let base = String(electronBase || config.API_BASE_URL || '').replace(/\/$/, '').trim();
+            if (!base || base === '/api') return window.location.origin;
+            if (base.endsWith('/api')) base = base.slice(0, -4);
+            return base || window.location.origin;
         };
-        const toRgb = (hex) => {
-            const h = String(hex || '').trim();
-            const m = /^#?([0-9a-f]{6})$/i.exec(h);
-            if (!m) return null;
-            const n = parseInt(m[1], 16);
-            return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+        const assetBase = getAssetBase();
+        const normalizeColor = (raw) => {
+            const s = String(raw || '').trim();
+            if (!s) return '';
+            if (s.startsWith('#')) return s;
+            if (/^[0-9a-f]{6}$/i.test(s)) return `#${s}`;
+            if (/^[0-9a-f]{3}$/i.test(s)) return `#${s}`;
+            return s;
+        };
+        const pickUrl = (v) => {
+            if (!v) return '';
+            if (typeof v === 'string') return v;
+            if (typeof v === 'object') {
+                return v.url || v.path || v.src || v.location || '';
+            }
+            return String(v);
+        };
+        const normalizeImageUrl = (v) => {
+            const s = String(pickUrl(v) || '').trim();
+            if (!s) return '';
+            if (/^data:image\//i.test(s)) return s;
+            if (/^https?:\/\//i.test(s)) return s;
+            if (s.startsWith('//')) return `${window.location.protocol}${s}`;
+            if (s.startsWith('/')) return `${assetBase}${s}`;
+            // In a print iframe (about:blank), relative URLs like 'uploads/x.png' won't resolve.
+            // Treat them as server-relative from asset base.
+            return `${assetBase}/${s.replace(/^\/+/, '')}`;
+        };
+        const toRgb = (raw) => {
+            const h = String(raw || '').trim();
+            if (!h) return null;
+            const m6 = /^#?([0-9a-f]{6})$/i.exec(h);
+            if (m6) {
+                const n = parseInt(m6[1], 16);
+                return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+            }
+            const m3 = /^#?([0-9a-f]{3})$/i.exec(h);
+            if (m3) {
+                const r = parseInt(m3[1][0] + m3[1][0], 16);
+                const g = parseInt(m3[1][1] + m3[1][1], 16);
+                const b = parseInt(m3[1][2] + m3[1][2], 16);
+                return { r, g, b };
+            }
+            const mrgb = /^rgba?\((\d+)\s*,\s*(\d+)\s*,\s*(\d+)(?:\s*,\s*(\d*\.?\d+))?\)\s*$/i.exec(h);
+            if (mrgb) return { r: Number(mrgb[1]), g: Number(mrgb[2]), b: Number(mrgb[3]) };
+            return null;
         };
         const rgba = (rgb, a) => (rgb ? `rgba(${rgb.r},${rgb.g},${rgb.b},${a})` : `rgba(66,153,225,${a})`);
         const initials = (name) => {
@@ -76,13 +118,17 @@ export default function StudentIdCard() {
             const tpl = templates.find((t) => String(t.id) === String(c.templateId));
             const person = students.find((s) => String(s.id) === String(c.studentId));
             const fields = String(tpl?.fields || 'Photo, Name, ID, Class, Section').split(',').map((f) => f.trim()).filter(Boolean);
-            const bg = tpl?.bgColor || '#4299E1';
+            const bgRaw = tpl?.bgColor || tpl?.bg_color || tpl?.backgroundColor || tpl?.background_color || '#4299E1';
+            const bg = normalizeColor(bgRaw) || '#4299E1';
             const rgb = toRgb(bg);
-            const accentSoft = rgba(rgb, 0.12);
-            const accentMid = rgba(rgb, 0.88);
-            const logo = isLikelyImageUrl(tpl?.logoUrl) ? tpl.logoUrl : '';
-            const layoutClass = String(tpl?.layout || 'Horizontal').toLowerCase() === 'vertical' ? 'layout-vertical' : 'layout-horizontal';
-            const photoUrl = person?.avatar || person?.photoUrl || person?.photo || person?.avatarUrl || '';
+            const accentSoft = rgba(rgb, 0.18);
+            const accentMid = String(bg || '').trim() || '#4299E1';
+            const rawLogo = tpl?.logoUrl || tpl?.logo_url || tpl?.logo || tpl?.logoPath || tpl?.logo_path || '';
+            const logo = normalizeImageUrl(rawLogo);
+            const rawLayout = tpl?.layout || tpl?.orientation || 'Horizontal';
+            const layoutClass = String(rawLayout).toLowerCase() === 'vertical' ? 'layout-vertical' : 'layout-horizontal';
+            const rawPhotoUrl = person?.avatar || person?.photoUrl || person?.photo || person?.avatarUrl || person?.image || person?.profilePhoto || person?.profile_photo || '';
+            const photoUrl = normalizeImageUrl(rawPhotoUrl);
             const displayName = person?.name || c.personName || 'Unknown';
 
             const wantsPhoto = fields.some((f) => {
@@ -107,6 +153,15 @@ export default function StudentIdCard() {
                 if (key.includes('name')) return displayName;
                 if (key === 'id' || key.includes('student id')) return person?.id ?? c.studentId ?? '';
                 if (key.includes('roll')) return person?.rollNumber ?? person?.roll_number ?? '';
+                if (key.includes('father')) return person?.fatherName ?? person?.father_name ?? person?.parentName ?? person?.parent_name ?? '';
+                if (key.includes('guardian')) return person?.guardianName ?? person?.guardian_name ?? person?.parentName ?? person?.parent_name ?? '';
+                if (key.includes('mother')) return person?.motherName ?? person?.mother_name ?? '';
+                if (key.includes('gender')) return person?.gender ?? '';
+                if (key.includes('blood')) return person?.bloodGroup ?? person?.blood_group ?? '';
+                if (key.includes('cnic') || key.includes('b-form') || key.includes('b form')) return person?.cnic ?? person?.bForm ?? person?.b_form ?? '';
+                if (key.includes('dob') || key.includes('date of birth') || key.includes('birth')) return person?.dateOfBirth ?? person?.dob ?? person?.date_of_birth ?? '';
+                if (key.includes('admission')) return person?.admissionDate ?? person?.admission_date ?? '';
+                if (key.includes('address')) return person?.address ?? person?.currentAddress ?? person?.current_address ?? '';
                 if (key.includes('class')) return person?.class || '';
                 if (key.includes('section')) return person?.section || '';
                 if (key.includes('email')) return person?.email || '';
@@ -158,35 +213,38 @@ export default function StudentIdCard() {
             `;
         };
 
+        const sheetClass = (cards || []).length === 1 ? 'sheet single' : 'sheet';
+
         return `
             <html>
             <head>
                 <meta charset="utf-8" />
                 <title>${safe(title)}</title>
                 <style>
-                    *{box-sizing:border-box;font-family:Inter,Arial,Helvetica,sans-serif}
+                    *{box-sizing:border-box;font-family:Inter,Arial,Helvetica,sans-serif;-webkit-font-smoothing:antialiased;moz-osx-font-smoothing:grayscale;text-rendering:geometricPrecision}
                     body{margin:0;padding:14px;background:#fff}
                     .sheet{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-start}
-                    .idcard{width:340px;height:215px;border-radius:14px;overflow:hidden;position:relative;background:#fff;box-shadow:0 10px 30px rgba(17,24,39,.12);border:1px solid rgba(17,24,39,.08)}
+                    .sheet.single{justify-content:center;align-items:center;width:100%;min-height:273mm}
+                    .idcard{width:340px;height:215px;border-radius:14px;overflow:hidden;position:relative;background:linear-gradient(160deg,var(--accentSoft),#fff 62%);box-shadow:0 10px 30px rgba(17,24,39,.12);border:1.5px solid rgba(17,24,39,.12)}
                     .idcard:before{content:'';position:absolute;inset:-40% -40% auto auto;width:240px;height:240px;background:var(--accentSoft);transform:rotate(25deg)}
-                    .top{position:relative;display:flex;justify-content:space-between;align-items:center;padding:14px 14px 10px;background:linear-gradient(135deg,var(--accentMid),#111827)}
+                    .top{position:relative;display:flex;justify-content:space-between;align-items:center;padding:14px 14px 10px;background:linear-gradient(135deg,var(--accentMid) 0%, var(--accentMid) 55%, #111827 100%)}
                     .brand{display:flex;align-items:center;gap:10px;color:#fff}
                     .logo{width:38px;height:38px;object-fit:contain;border-radius:10px;background:rgba(255,255,255,.92);padding:5px}
                     .logoPlaceholder{width:38px;height:38px;border-radius:10px;background:rgba(255,255,255,.22);border:1px solid rgba(255,255,255,.25)}
-                    .brandName{font-weight:800;font-size:13px;letter-spacing:.2px;line-height:1.1}
-                    .brandSub{font-size:11px;opacity:.9}
+                    .brandName{font-weight:900;font-size:13.5px;letter-spacing:.2px;line-height:1.1}
+                    .brandSub{font-size:11.5px;opacity:.92}
                     .chip{width:34px;height:26px;border-radius:6px;background:rgba(255,255,255,.22);border:1px solid rgba(255,255,255,.25)}
                     .mid{position:relative;display:flex;gap:12px;padding:12px 14px}
                     .photoWrap{width:92px;display:flex;flex-direction:column;align-items:center;gap:8px}
                     .photo,.photoFallback{width:86px;height:86px;border-radius:14px;object-fit:cover;border:2px solid var(--accent);background:#f3f4f6}
                     .photoFallback{display:flex;align-items:center;justify-content:center;font-weight:800;color:#111827}
-                    .rolePill{font-size:10px;font-weight:700;padding:4px 10px;border-radius:999px;background:var(--accentSoft);color:#111827;border:1px solid rgba(17,24,39,.08)}
+                    .rolePill{font-size:10px;font-weight:800;padding:4px 10px;border-radius:999px;background:rgba(255,255,255,.72);color:#111827;border:1px solid rgba(17,24,39,.10);backdrop-filter:saturate(120%) blur(6px)}
                     .details{flex:1;min-width:0}
-                    .name{font-weight:900;font-size:14px;color:#111827;margin-bottom:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+                    .name{font-weight:900;font-size:15px;color:#111827;margin-bottom:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
                     .grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px 10px}
                     .kv{padding:8px 10px;border-radius:10px;background:rgba(17,24,39,.03);border:1px solid rgba(17,24,39,.06);min-width:0}
-                    .k{font-size:10px;color:#6b7280;font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px}
-                    .v{font-size:12px;color:#111827;font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+                    .k{font-size:10.5px;color:#4b5563;font-weight:900;text-transform:uppercase;letter-spacing:.35px;margin-bottom:2px}
+                    .v{font-size:12.5px;color:#111827;font-weight:750;line-height:1.15;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
                     .bottom{position:absolute;left:0;right:0;bottom:0;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 14px;background:linear-gradient(180deg,rgba(255,255,255,0),rgba(255,255,255,.96) 40%,#fff)}
                     .meta{font-size:10.5px;color:#374151}
                     .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
@@ -194,27 +252,32 @@ export default function StudentIdCard() {
                     .status.ok{background:#dcfce7;color:#166534}
                     .status.pending{background:#fef3c7;color:#92400e}
 
-                    .idcard.layout-vertical .mid{flex-direction:column;gap:10px;padding:10px 14px}
-                    .idcard.layout-vertical .photoWrap{width:100%;flex-direction:row;justify-content:flex-start;align-items:center;gap:10px}
-                    .idcard.layout-vertical .photo,.idcard.layout-vertical .photoFallback{width:64px;height:64px;border-radius:12px}
-                    .idcard.layout-vertical .rolePill{margin-left:auto}
-                    .idcard.layout-vertical .name{font-size:13px;margin-bottom:6px}
-                    .idcard.layout-vertical .grid{gap:6px 8px}
-                    .idcard.layout-vertical .kv{padding:7px 9px;border-radius:9px}
-                    .idcard.layout-vertical .v{font-size:11.5px}
+                    .idcard.layout-vertical{width:215px;height:340px}
+                    .idcard.layout-vertical:before{inset:-45% -55% auto auto;width:240px;height:240px;transform:rotate(35deg)}
+                    .idcard.layout-vertical .top{padding:12px 12px 10px}
+                    .idcard.layout-vertical .mid{flex-direction:column;align-items:center;gap:10px;padding:12px}
+                    .idcard.layout-vertical .photoWrap{width:100%;flex-direction:column;justify-content:center;align-items:center;gap:8px}
+                    .idcard.layout-vertical .photo,.idcard.layout-vertical .photoFallback{width:78px;height:78px;border-radius:14px}
+                    .idcard.layout-vertical .rolePill{margin:0}
+                    .idcard.layout-vertical .details{width:100%}
+                    .idcard.layout-vertical .name{text-align:center;font-size:14px;margin-bottom:8px}
+                    .idcard.layout-vertical .grid{grid-template-columns:minmax(0,1fr);gap:8px}
+                    .idcard.layout-vertical .kv{padding:8px 10px;border-radius:10px}
+                    .idcard.layout-vertical .v{font-size:12px}
 
                     .idcard.no-photo .mid{gap:0}
 
                     @page { size: A4; margin: 12mm; }
                     @media print{
                         body{padding:0}
+                        .sheet.single{min-height:273mm;width:100%}
                         .idcard{page-break-inside:avoid;break-inside:avoid}
                         *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
                     }
                 </style>
             </head>
             <body>
-                <div class="sheet">${(cards || []).map(cardHtml).join('')}</div>
+                <div class="${sheetClass}">${(cards || []).map(cardHtml).join('')}</div>
             </body>
             </html>
         `;
@@ -244,10 +307,29 @@ export default function StudentIdCard() {
         doc.close();
 
         let printed = false;
-        const doPrint = () => {
+        const waitForImages = (docToWait) => {
+            try {
+                const imgs = Array.from(docToWait?.images || []);
+                if (!imgs.length) return Promise.resolve();
+                const per = imgs.map((img) => new Promise((resolve) => {
+                    if (!img) return resolve();
+                    if (img.complete) return resolve();
+                    const done = () => resolve();
+                    img.addEventListener('load', done, { once: true });
+                    img.addEventListener('error', done, { once: true });
+                }));
+                const timeout = new Promise((resolve) => setTimeout(resolve, 2500));
+                return Promise.race([Promise.all(per), timeout]);
+            } catch (_) {
+                return Promise.resolve();
+            }
+        };
+
+        const doPrint = async () => {
             if (printed) return;
             printed = true;
             try {
+                await waitForImages(doc);
                 iframe.contentWindow?.focus();
                 iframe.contentWindow?.print();
             } finally {
@@ -257,8 +339,8 @@ export default function StudentIdCard() {
             }
         };
 
-        iframe.onload = doPrint;
-        setTimeout(doPrint, 500);
+        iframe.onload = () => { doPrint(); };
+        setTimeout(() => { doPrint(); }, 700);
 
         try {
             await Promise.all((cards || []).map((c) => generatedIdCardApi.update(c.id, { status: 'Printed', campusId })));
@@ -316,11 +398,13 @@ export default function StudentIdCard() {
         try {
             const [studentsData, templatesData, cardsData] = await Promise.all([
                 studentApi.list({ campusId }),
-                idCardTemplateApi.list({ campusId, type: 'Student' }),
+                idCardTemplateApi.list({ campusId }),
                 generatedIdCardApi.list({ campusId, type: 'Student' })
             ]);
             setStudents(asArray(studentsData));
-            setTemplates(asArray(templatesData));
+            const allTemplates = asArray(templatesData);
+            const studentTemplates = allTemplates.filter((t) => String(t?.type || '').toLowerCase() === 'student');
+            setTemplates(studentTemplates);
             setGeneratedCards(asArray(cardsData));
         } catch (error) {
             toast({ title: 'Error fetching data', status: 'error' });

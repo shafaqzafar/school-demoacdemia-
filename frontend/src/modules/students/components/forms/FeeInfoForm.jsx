@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Box,
   FormControl,
@@ -30,6 +30,7 @@ import {
   useColorModeValue
 } from '@chakra-ui/react';
 import { useAppSelector, useAppDispatch } from '../../../../redux/hooks';
+import { masterDataApi } from '../../../../services/api';
 import {
   updateFormData,
   selectStudentFormData,
@@ -40,6 +41,10 @@ function FeeInfoForm() {
   const formData = useAppSelector(selectStudentFormData);
   const feeInfo = formData.fee || {};
   const transportInfo = formData.transport || {};
+  const academicInfo = formData.academic || {};
+
+  const [feeRules, setFeeRules] = useState([]);
+  const [loadingFeeRules, setLoadingFeeRules] = useState(false);
 
   const getCurrentAcademicYears = () => {
     const currentYear = new Date().getFullYear();
@@ -67,6 +72,90 @@ function FeeInfoForm() {
       data: { [field]: value }
     }));
   };
+
+  const applyFeeRules = useCallback((rules, { overwrite = false } = {}) => {
+    const out = {};
+    const current = feeInfo || {};
+
+    const setIf = (field, value) => {
+      if (value === undefined || value === null || value === '') return;
+      if (!overwrite && current[field] !== undefined && current[field] !== null && String(current[field]) !== '') return;
+      out[field] = String(value);
+    };
+
+    rules.forEach((r) => {
+      const type = String(r?.fee_type || r?.feeType || '').toLowerCase();
+      const amount = r?.amount;
+      if (!type) return;
+      if (type === 'tuition') setIf('tuitionFee', amount);
+      if (type === 'admission') setIf('admissionFee', amount);
+      if (type === 'transport') setIf('transportFee', amount);
+      if (type === 'exam') setIf('examFee', amount);
+      if (type === 'lab') setIf('labFee', amount);
+      if (type === 'library') setIf('libraryFee', amount);
+      if (type === 'activity') setIf('activityFee', amount);
+    });
+
+    if (Object.keys(out).length) {
+      dispatch(updateFormData({ step: 'fee', data: out }));
+    }
+  }, [dispatch, feeInfo]);
+
+  useEffect(() => {
+    let alive = true;
+    setLoadingFeeRules(true);
+    masterDataApi
+      .getFeeRules()
+      .then((res) => {
+        const rows = Array.isArray(res) ? res : res?.rows || res?.data || [];
+        if (alive) setFeeRules(Array.isArray(rows) ? rows : []);
+      })
+      .catch(() => {
+        if (alive) setFeeRules([]);
+      })
+      .finally(() => {
+        if (alive) setLoadingFeeRules(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const applicableFeeRules = useMemo(() => {
+    const classSectionId = academicInfo?.classSectionId;
+    const normalizedId = classSectionId === undefined || classSectionId === null || classSectionId === ''
+      ? null
+      : Number(classSectionId);
+
+    const rules = Array.isArray(feeRules) ? feeRules : [];
+    const matched = rules.filter((r) => {
+      const cid = r?.class_id ?? r?.classId ?? null;
+      if (cid === null || cid === undefined || cid === '') return false;
+      const num = Number(cid);
+      return Number.isFinite(num) && normalizedId !== null && num === normalizedId;
+    });
+
+    if (matched.length) return matched;
+    return rules.filter((r) => {
+      const cid = r?.class_id ?? r?.classId ?? null;
+      return cid === null || cid === undefined || cid === '';
+    });
+  }, [feeRules, academicInfo?.classSectionId]);
+
+  useEffect(() => {
+    if (!applicableFeeRules.length) return;
+    const hasAny = [
+      feeInfo.tuitionFee,
+      feeInfo.admissionFee,
+      feeInfo.transportFee,
+      feeInfo.libraryFee,
+      feeInfo.labFee,
+      feeInfo.examFee,
+      feeInfo.activityFee,
+    ].some((v) => v !== undefined && v !== null && String(v) !== '');
+    if (hasAny) return;
+    applyFeeRules(applicableFeeRules, { overwrite: false });
+  }, [applicableFeeRules, applyFeeRules, feeInfo]);
   
   // Handle discount object changes
   const handleDiscountChange = (field, value) => {
@@ -126,6 +215,7 @@ function FeeInfoForm() {
             value={feeInfo.feePlan || ''}
             onChange={(e) => handleInputChange('feePlan', e.target.value)}
             placeholder="Select fee plan"
+            isDisabled={loadingFeeRules}
           >
             <option value="Standard">Standard</option>
             <option value="Scholarship">Scholarship</option>
@@ -133,6 +223,11 @@ function FeeInfoForm() {
             <option value="Sibling">Sibling Discount</option>
             <option value="Custom">Custom</option>
           </Select>
+          {applicableFeeRules.length ? (
+            <FormHelperText>
+              Master fee rules found: {applicableFeeRules.length}. You can edit amounts below.
+            </FormHelperText>
+          ) : null}
         </FormControl>
         
         <FormControl id="academicYear" isRequired>

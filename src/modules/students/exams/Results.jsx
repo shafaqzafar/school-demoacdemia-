@@ -36,8 +36,17 @@ export default function Results(){
     const fetchResults = async () => {
       try {
         if (!student?.id) return;
-        const data = await resultsApi.list({ page: 1, pageSize: 2000, studentId: student.id });
-        const list = Array.isArray(data?.items) ? data.items : [];
+        const list = [];
+        let page = 1;
+        const pageSize = 200;
+        for (;;) {
+          const data = await resultsApi.list({ page, pageSize, studentId: student.id });
+          const items = Array.isArray(data?.items) ? data.items : [];
+          list.push(...items);
+          if (items.length < pageSize) break;
+          page += 1;
+          if (page > 50) break;
+        }
         setItems(list);
         if (!examKey) {
           const first = list[0]?.examId;

@@ -8,15 +8,13 @@ import App from './App';
 const isFileProtocol = typeof window !== 'undefined' && String(window.location?.protocol || '') === 'file:';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
-  <React.StrictMode>
-    {isFileProtocol ? (
-      <HashRouter>
-        <App />
-      </HashRouter>
-    ) : (
-      <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-        <App />
-      </BrowserRouter>
-    )}
-  </React.StrictMode>
+  isFileProtocol ? (
+    <HashRouter>
+      <App />
+    </HashRouter>
+  ) : (
+    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <App />
+    </BrowserRouter>
+  )
 );

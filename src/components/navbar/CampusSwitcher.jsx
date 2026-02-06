@@ -45,22 +45,28 @@ export default function CampusSwitcher() {
     const menuItemActiveBg = useColorModeValue('brand.50', 'whiteAlpha.200');
 
     useEffect(() => {
-        if (user?.role === 'admin' || user?.role === 'owner') {
-            campusesApi.list({ pageSize: 100 })
-                .then(res => {
-                    const list = res.rows || [];
-                    setCampuses(list);
-                    if (!campusId || String(campusId).toLowerCase() === 'all') {
-                        setSelectedCampus({ id: 'all', name: 'All' });
-                        return;
-                    }
+        if (user?.role !== 'admin' && user?.role !== 'owner') return;
+        let mounted = true;
+        campusesApi.list({ pageSize: 100 })
+            .then((res) => {
+                if (!mounted) return;
+                const list = res?.rows || [];
+                setCampuses(list);
+            })
+            .catch((err) => console.error('Failed to load campuses', err));
+        return () => { mounted = false; };
+    }, [user?.role]);
 
-                    const current = list.find(c => String(c.id) === String(campusId));
-                    setSelectedCampus(current || { id: 'all', name: 'All' });
-                })
-                .catch(err => console.error('Failed to load campuses', err));
+    useEffect(() => {
+        if (user?.role !== 'admin' && user?.role !== 'owner') return;
+
+        if (!campusId || String(campusId).toLowerCase() === 'all') {
+            setSelectedCampus({ id: 'all', name: 'All' });
+            return;
         }
-    }, [user, campusId]);
+        const current = campuses.find((c) => String(c.id) === String(campusId));
+        setSelectedCampus(current || { id: 'all', name: 'All' });
+    }, [campusId, campuses, user?.role]);
 
     const handleSelect = (campus) => {
         if (String(campus?.id).toLowerCase() === 'all') {

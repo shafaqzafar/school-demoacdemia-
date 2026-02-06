@@ -32,7 +32,7 @@ export default function SubmitWork() {
       }
 
       try {
-        const payload = await assignmentsApi.list({ page: 1, pageSize: 500 });
+        const payload = await assignmentsApi.list({ page: 1, pageSize: 200 });
         setRows(Array.isArray(payload?.rows) ? payload.rows : []);
       } catch {
         setRows([]);
@@ -83,7 +83,7 @@ export default function SubmitWork() {
     } finally {
       onClose();
       try {
-        const payload = await assignmentsApi.list({ page: 1, pageSize: 500 });
+        const payload = await assignmentsApi.list({ page: 1, pageSize: 200 });
         setRows(Array.isArray(payload?.rows) ? payload.rows : []);
       } catch {
         setRows([]);

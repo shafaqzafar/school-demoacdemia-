@@ -36,6 +36,10 @@ export const profile = async () => {
   return http.get('/auth/profile');
 };
 
+export const profileSafe = async (options = {}) => {
+  return http.get('/auth/profile', { ...options, skipUnauthorizedHandler: true });
+};
+
 // Admin only: backfill user accounts from domain tables by role
 export const backfillUsers = async ({ role }) => {
   return http.post('/auth/backfill-users', { role });

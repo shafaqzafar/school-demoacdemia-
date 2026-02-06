@@ -41,7 +41,7 @@ export default function AttendanceChart() {
     const endDate = end.toISOString().slice(0, 10);
     const load = async () => {
       try {
-        const res = await attendanceApi.list({ studentId: sid, startDate, endDate, pageSize: 1000 });
+        const res = await attendanceApi.list({ studentId: sid, startDate, endDate, pageSize: 200 });
         setRecords(Array.isArray(res?.items) ? res.items : []);
       } catch {
         setRecords([]);

@@ -68,6 +68,29 @@ export async function ensureStudentExtendedColumns() {
   `);
 }
 
+export async function ensureExamResultsSchema() {
+  await query(`
+    DO $$
+    BEGIN
+      IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'exam_results') THEN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='exam_results' AND column_name='campus_id') THEN
+          EXECUTE 'ALTER TABLE exam_results ADD COLUMN campus_id INTEGER REFERENCES campuses(id) ON DELETE SET NULL';
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='exam_results' AND column_name='created_at') THEN
+          EXECUTE 'ALTER TABLE exam_results ADD COLUMN created_at TIMESTAMP NOT NULL DEFAULT NOW()';
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='exam_results' AND column_name='updated_at') THEN
+          EXECUTE 'ALTER TABLE exam_results ADD COLUMN updated_at TIMESTAMP NOT NULL DEFAULT NOW()';
+        END IF;
+      END IF;
+    END $$;
+
+    CREATE INDEX IF NOT EXISTS idx_exam_results_exam ON exam_results (exam_id);
+    CREATE INDEX IF NOT EXISTS idx_exam_results_student ON exam_results (student_id);
+    CREATE INDEX IF NOT EXISTS idx_exam_results_campus ON exam_results (campus_id);
+  `);
+}
+
 export async function ensureAssignmentsSchema() {
   await query(`
     DO $$
@@ -170,6 +193,38 @@ export async function ensureCardManagementSchema() {
   await query(`
     ALTER TABLE admit_card_templates
       ADD COLUMN IF NOT EXISTS exam_name TEXT;
+  `);
+}
+
+export async function ensureClassSectionsSchema() {
+  await query(`
+    DO $$
+    DECLARE
+      default_campus_id INTEGER;
+    BEGIN
+      SELECT id INTO default_campus_id FROM campuses ORDER BY id ASC LIMIT 1;
+
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+         WHERE table_name='class_sections' AND column_name='campus_id'
+      ) THEN
+        EXECUTE 'ALTER TABLE class_sections ADD COLUMN campus_id INTEGER REFERENCES campuses(id) ON DELETE SET NULL';
+      END IF;
+
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+         WHERE table_name='class_sections' AND column_name='is_shared'
+      ) THEN
+        EXECUTE 'ALTER TABLE class_sections ADD COLUMN is_shared BOOLEAN DEFAULT FALSE';
+      END IF;
+
+      IF default_campus_id IS NOT NULL THEN
+        EXECUTE format('UPDATE class_sections SET campus_id = %s WHERE campus_id IS NULL', default_campus_id);
+      END IF;
+    END $$;
+
+    CREATE INDEX IF NOT EXISTS idx_class_sections_campus ON class_sections (campus_id);
+    CREATE INDEX IF NOT EXISTS idx_class_sections_shared ON class_sections (is_shared);
   `);
 }
 

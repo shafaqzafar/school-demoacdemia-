@@ -34,9 +34,9 @@ import {
     Badge,
     Switch,
 } from '@chakra-ui/react';
-import { MdAdd, MdEdit, MdDelete, MdSchool, MdWork, MdAttachMoney, MdApartment } from 'react-icons/md';
+import { MdAdd, MdEdit, MdDelete, MdSchool, MdWork, MdAttachMoney, MdApartment, MdClass } from 'react-icons/md';
 import Card from '../../../components/card/Card'; // Check correct path
-import { masterDataApi } from '../../../services/api';
+import { masterDataApi, classesApi } from '../../../services/api';
 
 export default function MasterDataManagement() {
     const textColor = useColorModeValue('secondaryGray.900', 'white');
@@ -70,6 +70,9 @@ export default function MasterDataManagement() {
                             <Tab _selected={{ color: 'white', bg: 'brand.500' }}>
                                 <Icon as={MdApartment} mr='2' /> Departments
                             </Tab>
+                            <Tab _selected={{ color: 'white', bg: 'brand.500' }}>
+                                <Icon as={MdClass} mr='2' /> Classes & Sections
+                            </Tab>
                         </TabList>
                         <TabPanels>
                             <TabPanel>
@@ -83,6 +86,9 @@ export default function MasterDataManagement() {
                             </TabPanel>
                             <TabPanel>
                                 <DepartmentsManager />
+                            </TabPanel>
+                            <TabPanel>
+                                <ClassesSectionsManager />
                             </TabPanel>
                         </TabPanels>
                     </Tabs>
@@ -212,6 +218,160 @@ const SubjectsManager = () => {
                             </FormLabel>
                             <Switch
                                 id='isSharedSub'
+                                isChecked={form.isShared ?? true}
+                                onChange={(e) => setForm({ ...form, isShared: e.target.checked })}
+                            />
+                        </FormControl>
+                    </ModalBody>
+                    <ModalFooter>
+                        <Button colorScheme='brand' onClick={handleSave}>Save</Button>
+                    </ModalFooter>
+                </ModalContent>
+            </Modal>
+        </Box>
+    );
+};
+
+const ClassesSectionsManager = () => {
+    const [data, setData] = useState([]);
+    const { isOpen, onOpen, onClose } = useDisclosure();
+    const [editing, setEditing] = useState(null);
+    const [form, setForm] = useState({ className: '', section: '', academicYear: '', isShared: true });
+    const toast = useToast();
+
+    const load = async () => {
+        try {
+            const res = await classesApi.list({ page: 1, pageSize: 200 });
+            const rows = Array.isArray(res?.rows) ? res.rows : Array.isArray(res) ? res : [];
+            setData(rows);
+        } catch (e) {
+            console.error(e);
+            setData([]);
+        }
+    };
+
+    useEffect(() => { load(); }, []);
+
+    const handleSave = async () => {
+        try {
+            const payload = {
+                className: String(form.className || '').trim(),
+                section: String(form.section || '').trim(),
+                academicYear: String(form.academicYear || '').trim() || undefined,
+                isShared: Boolean(form.isShared),
+            };
+
+            if (!payload.className || !payload.section) {
+                toast({ title: 'Class name and section are required', status: 'warning' });
+                return;
+            }
+
+            if (editing) {
+                await classesApi.update(editing.id, payload);
+                toast({ title: 'Updated', status: 'success' });
+            } else {
+                await classesApi.create(payload);
+                toast({ title: 'Created', status: 'success' });
+            }
+            onClose();
+            setEditing(null);
+            setForm({ className: '', section: '', academicYear: '', isShared: true });
+            load();
+        } catch (e) {
+            toast({ title: 'Error', description: e.message, status: 'error' });
+        }
+    };
+
+    const handleEdit = (item) => {
+        setEditing(item);
+        setForm({
+            className: item.className || item.class_name || '',
+            section: item.section || '',
+            academicYear: item.academicYear || item.academic_year || '',
+            isShared: item.isShared ?? item.is_shared ?? false,
+        });
+        onOpen();
+    };
+
+    const handleDelete = async (id) => {
+        if (!window.confirm('Are you sure?')) return;
+        try {
+            await classesApi.remove(id);
+            toast({ title: 'Deleted', status: 'success' });
+            load();
+        } catch (e) {
+            toast({ title: 'Error', status: 'error' });
+        }
+    };
+
+    return (
+        <Box>
+            <Flex justify='flex-end' mb='4'>
+                <Button
+                    leftIcon={<MdAdd />}
+                    colorScheme='brand'
+                    onClick={() => {
+                        setEditing(null);
+                        setForm({ className: '', section: '', academicYear: '', isShared: true });
+                        onOpen();
+                    }}
+                >
+                    Add Class Section
+                </Button>
+            </Flex>
+
+            <Table variant='simple'>
+                <Thead>
+                    <Tr>
+                        <Th>Class</Th>
+                        <Th>Section</Th>
+                        <Th>Shared</Th>
+                        <Th>Actions</Th>
+                    </Tr>
+                </Thead>
+                <Tbody>
+                    {data.map((item) => (
+                        <Tr key={item.id}>
+                            <Td fontWeight='bold'>{item.className || item.class_name}</Td>
+                            <Td>{item.section}</Td>
+                            <Td>
+                                <Badge colorScheme={(item.isShared ?? item.is_shared) ? 'purple' : 'gray'}>
+                                    {(item.isShared ?? item.is_shared) ? 'Yes' : 'No'}
+                                </Badge>
+                            </Td>
+                            <Td>
+                                <IconButton icon={<MdEdit />} size='sm' mr='2' onClick={() => handleEdit(item)} />
+                                <IconButton icon={<MdDelete />} size='sm' colorScheme='red' onClick={() => handleDelete(item.id)} />
+                            </Td>
+                        </Tr>
+                    ))}
+                </Tbody>
+            </Table>
+
+            <Modal isOpen={isOpen} onClose={onClose}>
+                <ModalOverlay />
+                <ModalContent>
+                    <ModalHeader>{editing ? 'Edit Class Section' : 'Add Class Section'}</ModalHeader>
+                    <ModalCloseButton />
+                    <ModalBody>
+                        <FormControl mb='3' isRequired>
+                            <FormLabel>Class Name</FormLabel>
+                            <Input value={form.className} onChange={(e) => setForm({ ...form, className: e.target.value })} />
+                        </FormControl>
+                        <FormControl mb='3' isRequired>
+                            <FormLabel>Section</FormLabel>
+                            <Input value={form.section} onChange={(e) => setForm({ ...form, section: e.target.value })} />
+                        </FormControl>
+                        <FormControl mb='3'>
+                            <FormLabel>Academic Year</FormLabel>
+                            <Input value={form.academicYear} onChange={(e) => setForm({ ...form, academicYear: e.target.value })} placeholder='e.g. 2024-2025' />
+                        </FormControl>
+                        <FormControl mb='3' display='flex' alignItems='center'>
+                            <FormLabel htmlFor='isSharedClassSection' mb='0'>
+                                Share across all campuses?
+                            </FormLabel>
+                            <Switch
+                                id='isSharedClassSection'
                                 isChecked={form.isShared ?? true}
                                 onChange={(e) => setForm({ ...form, isShared: e.target.checked })}
                             />

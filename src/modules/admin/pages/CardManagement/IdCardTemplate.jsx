@@ -21,6 +21,19 @@ export default function IdCardTemplate() {
     const [form, setForm] = useState({ id: '', name: '', type: 'Student', layout: 'Vertical', bgColor: '#4299E1', logoUrl: '', fields: '', instructions: '' });
     const textColorSecondary = useColorModeValue('gray.600', 'gray.400');
 
+    const getDefaultFields = (typeValue) => {
+        const t = String(typeValue || '').toLowerCase();
+        if (t === 'employee' || t === 'teacher') {
+            return 'Photo, Name, ID, Designation, Department, Phone, CNIC, Joining Date';
+        }
+        return 'Photo, Name, ID, Roll No, Class, Section, Father Name, Phone';
+    };
+
+    const getDefaultColor = (typeValue) => {
+        const t = String(typeValue || '').toLowerCase();
+        return t === 'employee' || t === 'teacher' ? '#805AD5' : '#4299E1';
+    };
+
     useEffect(() => {
         fetchTemplates();
     }, [campusId]);
@@ -167,9 +180,21 @@ export default function IdCardTemplate() {
                         </FormControl>
                         <FormControl mb={3}>
                             <FormLabel>Type</FormLabel>
-                            <Select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
+                            <Select
+                                value={form.type}
+                                onChange={(e) => {
+                                    const nextType = e.target.value;
+                                    const nextDefaults = getDefaultFields(nextType);
+                                    setForm((prev) => ({
+                                        ...prev,
+                                        type: nextType,
+                                        bgColor: prev.bgColor || getDefaultColor(nextType),
+                                        fields: String(prev.fields || '').trim() ? prev.fields : nextDefaults,
+                                    }));
+                                }}
+                            >
                                 <option value="Student">Student</option>
-                                <option value="Employee">Employee</option>
+                                <option value="Employee">Teacher/Employee</option>
                             </Select>
                         </FormControl>
                         <FormControl mb={3}>
@@ -203,7 +228,23 @@ export default function IdCardTemplate() {
                         </FormControl>
                         <FormControl mb={3}>
                             <FormLabel>Fields (comma-separated)</FormLabel>
-                            <Input value={form.fields} onChange={(e) => setForm({ ...form, fields: e.target.value })} placeholder="Photo, Name, ID, Class" />
+                            <Input
+                                value={form.fields}
+                                onChange={(e) => setForm({ ...form, fields: e.target.value })}
+                                placeholder={form.type === 'Employee'
+                                    ? 'Photo, Name, ID, Designation, Department, Phone'
+                                    : 'Photo, Name, ID, Roll No, Class, Section, Father Name'}
+                            />
+                            {!String(form.fields || '').trim() ? (
+                                <Button
+                                    mt={2}
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => setForm((prev) => ({ ...prev, fields: getDefaultFields(prev.type) }))}
+                                >
+                                    Use Default Fields
+                                </Button>
+                            ) : null}
                         </FormControl>
                         <FormControl mb={3}>
                             <FormLabel>Instructions</FormLabel>

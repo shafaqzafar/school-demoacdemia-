@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
     Box,
     Flex,
@@ -16,7 +16,6 @@ import { MdQrCodeScanner } from 'react-icons/md';
 import Card from '../../components/card/Card';
 import { useAuth } from '../../contexts/AuthContext';
 import { qrAttendanceApi } from '../../services/api';
-import * as studentsApi from '../../services/api/students';
 
 const toIntId = (value) => {
     if (value === null || value === undefined) return null;
@@ -33,13 +32,21 @@ const toIntId = (value) => {
 export default function QRCodeAttendance() {
     const textColorSecondary = useColorModeValue('gray.600', 'gray.400');
     const toast = useToast();
-    const { user, campusId } = useAuth();
+    const { user } = useAuth();
 
-    const [studentProfile, setStudentProfile] = useState(null);
+    const studentProfile = useMemo(() => {
+        if (!user) return null;
+        return {
+            id: user?.id,
+            name: user?.name || user?.email || 'Student',
+        };
+    }, [user]);
 
     const videoRef = useRef(null);
     const streamRef = useRef(null);
     const intervalRef = useRef(null);
+    const zxingRef = useRef(null);
+    const zxingStopRef = useRef(null);
 
     const [isScanning, setIsScanning] = useState(false);
     const [isStartingCamera, setIsStartingCamera] = useState(false);
@@ -49,27 +56,19 @@ export default function QRCodeAttendance() {
     const [lastMarkedAt, setLastMarkedAt] = useState(null);
     const [error, setError] = useState(null);
 
-    useEffect(() => {
-        let mounted = true;
-        const loadSelf = async () => {
-            try {
-                const payload = await studentsApi.list();
-                const rows = Array.isArray(payload?.rows) ? payload.rows : (Array.isArray(payload) ? payload : []);
-                const self = rows && rows.length ? rows[0] : null;
-                if (mounted) setStudentProfile(self);
-            } catch (_) {
-                if (mounted) setStudentProfile(null);
-            }
-        };
-        if (user?.role === 'student') loadSelf();
-        return () => { mounted = false; };
-    }, [user?.role, campusId]);
-
     const supportsBarcodeDetector = useMemo(() => {
         return typeof window !== 'undefined' && 'BarcodeDetector' in window;
     }, []);
 
     const stopScanner = useCallback(() => {
+        if (zxingStopRef.current) {
+            try { zxingStopRef.current(); } catch (_) { }
+            zxingStopRef.current = null;
+        }
+        if (zxingRef.current) {
+            try { zxingRef.current.reset(); } catch (_) { }
+            zxingRef.current = null;
+        }
         if (intervalRef.current) {
             clearInterval(intervalRef.current);
             intervalRef.current = null;
@@ -157,16 +156,6 @@ export default function QRCodeAttendance() {
 
     const startScanner = useCallback(async () => {
         setError(null);
-        if (!supportsBarcodeDetector) {
-            toast({
-                title: 'Scanner not supported',
-                description: 'Your browser does not support QR scanning here. Please enter the code manually.',
-                status: 'info',
-                duration: 4000,
-                isClosable: true,
-            });
-            return;
-        }
 
         try {
             setIsStartingCamera(true);
@@ -180,20 +169,51 @@ export default function QRCodeAttendance() {
                 await videoRef.current.play();
             }
 
-            const detector = new window.BarcodeDetector({ formats: ['qr_code'] });
             setIsScanning(true);
 
-            intervalRef.current = setInterval(async () => {
-                try {
-                    if (!videoRef.current || videoRef.current.readyState < 2) return;
-                    if (isSubmitting) return;
-                    const codes = await detector.detect(videoRef.current);
-                    if (codes && codes.length > 0) {
-                        await onDetected(codes[0]?.rawValue);
+            if (supportsBarcodeDetector) {
+                const detector = new window.BarcodeDetector({ formats: ['qr_code'] });
+                intervalRef.current = setInterval(async () => {
+                    try {
+                        if (!videoRef.current || videoRef.current.readyState < 2) return;
+                        if (isSubmitting) return;
+                        const codes = await detector.detect(videoRef.current);
+                        if (codes && codes.length > 0) {
+                            await onDetected(codes[0]?.rawValue);
+                        }
+                    } catch (_) {
                     }
-                } catch (_) {
+                }, 500);
+            } else {
+                let BrowserMultiFormatReaderCtor;
+                try {
+                    const mod = await import('@zxing/browser');
+                    BrowserMultiFormatReaderCtor = mod?.BrowserMultiFormatReader;
+                } catch (e) {
+                    toast({
+                        title: 'Scanner dependency missing',
+                        description: 'Please run "npm install" and restart the app to enable camera scanning. You can still use manual entry.',
+                        status: 'info',
+                        duration: 6000,
+                        isClosable: true,
+                    });
+                    setIsScanning(false);
+                    return;
                 }
-            }, 500);
+
+                const reader = new BrowserMultiFormatReaderCtor();
+                zxingRef.current = reader;
+                const controls = await reader.decodeFromVideoElement(videoRef.current, (result) => {
+                    if (!result) return;
+                    if (isSubmitting) return;
+                    const txt = typeof result?.getText === 'function' ? result.getText() : String(result?.text || '');
+                    if (!txt) return;
+                    onDetected(txt);
+                });
+                zxingStopRef.current = () => {
+                    try { controls?.stop?.(); } catch (_) { }
+                };
+            }
         } catch (e) {
             setError(e?.message || 'Camera permission denied');
             toast({
@@ -256,29 +276,30 @@ export default function QRCodeAttendance() {
                         justifyContent="center"
                         position="relative"
                     >
-                        {supportsBarcodeDetector ? (
-                            <>
-                                <video
-                                    ref={videoRef}
-                                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                                    playsInline
-                                    muted
-                                />
-                                {!isScanning && (
-                                    <Box position="absolute" textAlign="center">
-                                        <Text color="gray.500">Click “Start Scanner” to begin</Text>
-                                    </Box>
-                                )}
-                                {isStartingCamera && (
-                                    <Box position="absolute" textAlign="center">
-                                        <Spinner />
-                                        <Text mt={2} color="gray.600">Starting camera…</Text>
-                                    </Box>
-                                )}
-                            </>
-                        ) : (
-                            <Text color="gray.500">QR scanning is not supported in this browser. Use manual entry below.</Text>
-                        )}
+                        <>
+                            <video
+                                ref={videoRef}
+                                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                playsInline
+                                muted
+                            />
+                            {!isScanning && (
+                                <Box position="absolute" textAlign="center" px={4}>
+                                    <Text color="gray.600" fontWeight="700">Click “Start Scanner” to begin</Text>
+                                    {!supportsBarcodeDetector && (
+                                        <Text color="gray.500" fontSize="sm" mt={1}>
+                                            Using fallback scanner for this browser.
+                                        </Text>
+                                    )}
+                                </Box>
+                            )}
+                            {isStartingCamera && (
+                                <Box position="absolute" textAlign="center">
+                                    <Spinner />
+                                    <Text mt={2} color="gray.600">Starting camera…</Text>
+                                </Box>
+                            )}
+                        </>
                     </Box>
 
                     <VStack align="stretch" spacing={2}>

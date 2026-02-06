@@ -37,7 +37,7 @@ export default function StudentProfile() {
   useEffect(() => {
     const fetchStudents = async () => {
       try {
-        const data = await studentsApi.list({ page: 1, pageSize: 1000 });
+        const data = await studentsApi.list({ page: 1, pageSize: 200 });
         setStudents(Array.isArray(data?.rows) ? data.rows : []);
       } catch (e) {
         setStudents([]);

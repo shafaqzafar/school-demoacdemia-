@@ -42,6 +42,7 @@
     "@chakra-ui/react": "^2.8.2",
     "@chakra-ui/styled-system": "^2.0.0",
     "@chakra-ui/theme-tools": "^2.2.6",
+    "@zxing/browser": "^0.1.5",
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",
     "@vitejs/plugin-react-swc": "^4.2.2",

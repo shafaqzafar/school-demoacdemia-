@@ -364,6 +364,12 @@ export const getSMSRoutes = () => {
           component: lazy(() => import('./modules/admin/pages/academics/ResultsMarksheet')),
         },
         {
+          name: 'Result Card',
+          layout: '/admin',
+          path: '/academics/results/result-card',
+          component: lazy(() => import('./modules/admin/pages/academics/ResultsResultCard')),
+        },
+        {
           name: 'Grade Calculation',
           layout: '/admin',
           path: '/academics/grading',

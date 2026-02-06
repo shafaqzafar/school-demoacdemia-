@@ -159,6 +159,56 @@ const resolveTeacherId = (teacher) => {
   return id === undefined || id === null ? null : Number(id);
 };
 
+const parseAssignmentClasses = (raw) => {
+  if (!raw) return [];
+  if (Array.isArray(raw)) {
+    return raw
+      .map((v) => (v === undefined || v === null ? '' : String(v).trim()))
+      .filter(Boolean);
+  }
+  if (typeof raw === 'string') {
+    const str = raw.trim();
+    if (!str) return [];
+    try {
+      const parsed = JSON.parse(str);
+      if (Array.isArray(parsed)) {
+        return parsed
+          .map((v) => (v === undefined || v === null ? '' : String(v).trim()))
+          .filter(Boolean);
+      }
+    } catch {
+      // ignore
+    }
+    return str
+      .split(',')
+      .map((v) => v.trim())
+      .filter(Boolean);
+  }
+  return [];
+};
+
+const splitClassAndSection = (value) => {
+  const raw = String(value || '').trim();
+  if (!raw) return { className: '', section: '' };
+
+  if (raw.includes('-')) {
+    const parts = raw
+      .split('-')
+      .map((p) => p.trim())
+      .filter(Boolean);
+    if (parts.length >= 2) {
+      return { className: parts[0], section: parts.slice(1).join('-') };
+    }
+  }
+
+  const match = raw.match(/^\s*(\d+)\s*([A-Za-z]+)\s*$/);
+  if (match) {
+    return { className: match[1], section: match[2] };
+  }
+
+  return { className: raw, section: '' };
+};
+
 const TeacherSchedule = () => {
   const [selectedTeacher, setSelectedTeacher] = useState('all');
   const [selectedDay, setSelectedDay] = useState('all');
@@ -176,6 +226,10 @@ const TeacherSchedule = () => {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [roomTarget, setRoomTarget] = useState(null);
   const [roomValue, setRoomValue] = useState('');
+
+  const [teacherAssignments, setTeacherAssignments] = useState([]);
+  const [teacherAssignmentsLoading, setTeacherAssignmentsLoading] = useState(false);
+  const teacherSelectionSeq = useRef(0);
 
   const modalDisclosure = useDisclosure();
   const deleteDisclosure = useDisclosure();
@@ -494,6 +548,89 @@ const TeacherSchedule = () => {
     return [...teachers].sort((a, b) => resolveTeacherName(a).localeCompare(resolveTeacherName(b)));
   }, [teachers]);
 
+  const assignmentSubjectOptions = useMemo(() => {
+    const set = new Set();
+    (teacherAssignments || []).forEach((row) => {
+      const name = row?.subjectName || row?.subject || row?.name || '';
+      const trimmed = String(name || '').trim();
+      if (trimmed) set.add(trimmed);
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [teacherAssignments]);
+
+  const assignmentClassOptions = useMemo(() => {
+    const set = new Set();
+    (teacherAssignments || []).forEach((row) => {
+      const classes = parseAssignmentClasses(row?.classes ?? row?.class ?? row?.className);
+      classes.forEach((c) => {
+        const trimmed = String(c || '').trim();
+        if (trimmed) set.add(trimmed);
+      });
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  }, [teacherAssignments]);
+
+  const handleTeacherSelection = useCallback(
+    async (teacherIdValue) => {
+      const seq = (teacherSelectionSeq.current += 1);
+      const teacherIdNum = Number(teacherIdValue);
+
+      setFormState((prev) => ({
+        ...prev,
+        teacherId: teacherIdValue,
+        subject: '',
+        className: '',
+        section: '',
+      }));
+      setTeacherAssignments([]);
+
+      if (!teacherIdValue || !Number.isFinite(teacherIdNum)) return;
+
+      setTeacherAssignmentsLoading(true);
+      try {
+        const assignments = await teacherApi.listSubjectAssignments({ teacherId: teacherIdNum });
+        if (seq !== teacherSelectionSeq.current) return;
+
+        const rows = Array.isArray(assignments)
+          ? assignments
+          : Array.isArray(assignments?.rows)
+            ? assignments.rows
+            : [];
+
+        setTeacherAssignments(rows);
+
+        const primary = rows.find((r) => r?.isPrimary) || rows[0];
+        if (!primary) return;
+
+        const pickedSubject = String(primary?.subjectName || primary?.subject || primary?.name || '').trim();
+        const classes = parseAssignmentClasses(primary?.classes ?? primary?.class ?? primary?.className);
+        const pickedClassRaw = classes[0] ? String(classes[0]).trim() : '';
+        const split = splitClassAndSection(pickedClassRaw);
+
+        setFormState((prev) => ({
+          ...prev,
+          teacherId: teacherIdValue,
+          subject: pickedSubject || prev.subject,
+          className: split.className || prev.className,
+          section: split.section || prev.section,
+        }));
+      } catch (error) {
+        if (seq !== teacherSelectionSeq.current) return;
+        setTeacherAssignments([]);
+        toast({
+          title: 'Auto-fill failed',
+          description: error?.message || 'Could not load teacher assignments.',
+          status: 'error',
+          duration: 4000,
+          isClosable: true,
+        });
+      } finally {
+        if (seq === teacherSelectionSeq.current) setTeacherAssignmentsLoading(false);
+      }
+    },
+    [toast]
+  );
+
   const getTeacherAvatar = (teacherId) => {
     const teacher = teacherMap.get(Number(teacherId));
     return teacher?.avatar || teacher?.photo || teacher?.profilePicture || '';
@@ -586,7 +723,7 @@ const TeacherSchedule = () => {
                 <Select
                   placeholder="Select teacher"
                   value={formState.teacherId}
-                  onChange={(e) => setFormState((prev) => ({ ...prev, teacherId: e.target.value }))}
+                  onChange={(e) => handleTeacherSelection(e.target.value)}
                 >
                   {teacherDirectory.map((teacher) => {
                     const id = resolveTeacherId(teacher);
@@ -602,20 +739,58 @@ const TeacherSchedule = () => {
 
               <FormControl>
                 <FormLabel>Subject</FormLabel>
-                <Input
-                  placeholder="e.g. Mathematics"
-                  value={formState.subject}
-                  onChange={(e) => setFormState((prev) => ({ ...prev, subject: e.target.value }))}
-                />
+                {assignmentSubjectOptions.length ? (
+                  <Select
+                    placeholder={teacherAssignmentsLoading ? 'Loading subjects...' : 'Select subject'}
+                    value={formState.subject}
+                    onChange={(e) => setFormState((prev) => ({ ...prev, subject: e.target.value }))}
+                    isDisabled={!formState.teacherId || teacherAssignmentsLoading}
+                  >
+                    {assignmentSubjectOptions.map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    ))}
+                  </Select>
+                ) : (
+                  <Input
+                    placeholder="e.g. Mathematics"
+                    value={formState.subject}
+                    onChange={(e) => setFormState((prev) => ({ ...prev, subject: e.target.value }))}
+                  />
+                )}
               </FormControl>
 
               <FormControl>
                 <FormLabel>Class</FormLabel>
-                <Input
-                  placeholder="e.g. 10A"
-                  value={formState.className}
-                  onChange={(e) => setFormState((prev) => ({ ...prev, className: e.target.value }))}
-                />
+                {assignmentClassOptions.length ? (
+                  <Select
+                    placeholder={teacherAssignmentsLoading ? 'Loading classes...' : 'Select class'}
+                    value={formState.className}
+                    onChange={(e) => {
+                      const next = e.target.value;
+                      const split = splitClassAndSection(next);
+                      setFormState((prev) => ({
+                        ...prev,
+                        className: split.className || next,
+                        section: split.section || prev.section,
+                      }));
+                    }}
+                    isDisabled={!formState.teacherId || teacherAssignmentsLoading}
+                  >
+                    {assignmentClassOptions.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </Select>
+                ) : (
+                  <Input
+                    placeholder="e.g. 10A"
+                    value={formState.className}
+                    onChange={(e) => setFormState((prev) => ({ ...prev, className: e.target.value }))}
+                  />
+                )}
               </FormControl>
 
               <FormControl>

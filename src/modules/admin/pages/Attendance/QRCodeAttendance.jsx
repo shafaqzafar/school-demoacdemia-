@@ -80,6 +80,8 @@ export default function AdminQRAttendance() {
     const videoRef = useRef(null);
     const streamRef = useRef(null);
     const intervalRef = useRef(null);
+    const zxingRef = useRef(null);
+    const zxingStopRef = useRef(null);
 
     const [attendanceType, setAttendanceType] = useState('Student');
     const [sessionType, setSessionType] = useState('Student');
@@ -101,6 +103,14 @@ export default function AdminQRAttendance() {
     }, []);
 
     const stopScanner = useCallback(() => {
+        if (zxingStopRef.current) {
+            try { zxingStopRef.current(); } catch (_) { }
+            zxingStopRef.current = null;
+        }
+        if (zxingRef.current) {
+            try { zxingRef.current.reset(); } catch (_) { }
+            zxingRef.current = null;
+        }
         if (intervalRef.current) {
             clearInterval(intervalRef.current);
             intervalRef.current = null;
@@ -243,16 +253,6 @@ export default function AdminQRAttendance() {
 
     const startScanner = useCallback(async () => {
         setError(null);
-        if (!supportsBarcodeDetector) {
-            toast({
-                title: 'Scanner not supported',
-                description: 'Your browser does not support QR scanning here. Please enter the code manually.',
-                status: 'info',
-                duration: 4000,
-                isClosable: true,
-            });
-            return;
-        }
 
         try {
             setIsStartingCamera(true);
@@ -266,20 +266,53 @@ export default function AdminQRAttendance() {
                 await videoRef.current.play();
             }
 
-            const detector = new window.BarcodeDetector({ formats: ['qr_code'] });
             setIsScanning(true);
 
-            intervalRef.current = setInterval(async () => {
-                try {
-                    if (!videoRef.current || videoRef.current.readyState < 2) return;
-                    if (isSubmitting) return;
-                    const codes = await detector.detect(videoRef.current);
-                    if (codes && codes.length > 0) {
-                        await onDetected(codes[0]?.rawValue);
+            if (supportsBarcodeDetector) {
+                const detector = new window.BarcodeDetector({ formats: ['qr_code'] });
+                intervalRef.current = setInterval(async () => {
+                    try {
+                        if (!videoRef.current || videoRef.current.readyState < 2) return;
+                        if (isSubmitting) return;
+                        const codes = await detector.detect(videoRef.current);
+                        if (codes && codes.length > 0) {
+                            await onDetected(codes[0]?.rawValue);
+                        }
+                    } catch (_) {
                     }
-                } catch (_) {
+                }, 500);
+            } else {
+                // Fallback for browsers without BarcodeDetector
+                let BrowserMultiFormatReaderCtor;
+                try {
+                    const mod = await import('@zxing/browser');
+                    BrowserMultiFormatReaderCtor = mod?.BrowserMultiFormatReader;
+                } catch (e) {
+                    toast({
+                        title: 'Scanner dependency missing',
+                        description: 'Please run "npm install" and restart the app to enable camera scanning. You can still use manual entry.',
+                        status: 'info',
+                        duration: 6000,
+                        isClosable: true,
+                    });
+                    setIsScanning(false);
+                    return;
                 }
-            }, 500);
+
+                const reader = new BrowserMultiFormatReaderCtor();
+                zxingRef.current = reader;
+
+                const controls = await reader.decodeFromVideoElement(videoRef.current, (result, err, ctrl) => {
+                    if (!result) return;
+                    if (isSubmitting) return;
+                    const txt = typeof result?.getText === 'function' ? result.getText() : String(result?.text || '');
+                    if (!txt) return;
+                    onDetected(txt);
+                });
+                zxingStopRef.current = () => {
+                    try { controls?.stop?.(); } catch (_) { }
+                };
+            }
         } catch (e) {
             setError(e?.message || 'Camera permission denied');
             toast({
@@ -401,29 +434,30 @@ export default function AdminQRAttendance() {
                         justifyContent="center"
                         position="relative"
                     >
-                        {supportsBarcodeDetector ? (
-                            <>
-                                <video
-                                    ref={videoRef}
-                                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                                    playsInline
-                                    muted
-                                />
-                                {!isScanning && (
-                                    <Box position="absolute" textAlign="center">
-                                        <Text color="gray.500">Click “Start Scanner” to begin</Text>
-                                    </Box>
-                                )}
-                                {isStartingCamera && (
-                                    <Box position="absolute" textAlign="center">
-                                        <Spinner />
-                                        <Text mt={2} color="gray.600">Starting camera…</Text>
-                                    </Box>
-                                )}
-                            </>
-                        ) : (
-                            <Text color="gray.500">QR scanning is not supported in this browser. Use manual entry below.</Text>
-                        )}
+                        <>
+                            <video
+                                ref={videoRef}
+                                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                playsInline
+                                muted
+                            />
+                            {!isScanning && (
+                                <Box position="absolute" textAlign="center" px={4}>
+                                    <Text color="gray.600" fontWeight="700">Click “Start Scanner” to begin</Text>
+                                    {!supportsBarcodeDetector && (
+                                        <Text color="gray.500" fontSize="sm" mt={1}>
+                                            Your browser doesn’t support the native scanner. Using fallback scanner.
+                                        </Text>
+                                    )}
+                                </Box>
+                            )}
+                            {isStartingCamera && (
+                                <Box position="absolute" textAlign="center">
+                                    <Spinner />
+                                    <Text mt={2} color="gray.600">Starting camera…</Text>
+                                </Box>
+                            )}
+                        </>
                     </Box>
 
                     <VStack align="stretch" spacing={2}>

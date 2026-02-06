@@ -43,6 +43,7 @@ import {
   ModalFooter,
   FormControl,
   FormLabel,
+  Checkbox,
   Spinner,
   Textarea,
 } from '@chakra-ui/react';
@@ -77,6 +78,7 @@ const normalizeClassRow = (row = {}, fallbackId) => {
   const capacity = Number.isFinite(rawCapacity) && rawCapacity > 0 ? rawCapacity : 30;
   const classTeacherId = row.classTeacherId ?? row.class_teacher_id ?? null;
   const classTeacherName = row.classTeacherName || row.classTeacher || row.teacherName || '—';
+  const isShared = Boolean(row.isShared ?? row.is_shared);
 
   return {
     id: row.id ?? fallbackId ?? `${className}-${section}`,
@@ -86,6 +88,7 @@ const normalizeClassRow = (row = {}, fallbackId) => {
     classTeacher: classTeacherName,
     strength,
     capacity,
+    isShared,
     academicYear: row.academicYear || row.year || '',
     status: row.status || 'active',
     medium: row.medium || '',
@@ -102,6 +105,7 @@ const initialCreateForm = {
   className: '',
   section: '',
   academicYear: '',
+  isShared: false,
   classTeacherId: '',
   capacity: 30,
   strength: 0,
@@ -117,6 +121,7 @@ const initialEditForm = {
   strength: 0,
   capacity: 0,
   academicYear: '',
+  isShared: false,
   room: '',
   medium: '',
   shift: '',
@@ -243,6 +248,7 @@ export default function Classes() {
       strength: record.strength ?? 0,
       capacity: record.capacity ?? 0,
       academicYear: record.academicYear || '',
+      isShared: Boolean(record.isShared),
       room: record.room || '',
       medium: record.medium || '',
       shift: record.shift || '',
@@ -300,7 +306,6 @@ export default function Classes() {
 
   const handleCreateClass = async () => {
     if (!createForm.className.trim() || !createForm.section.trim()) {
-    setIsDeleting(true);
       toast({
         title: 'Class name and section are required',
         status: 'warning',
@@ -310,7 +315,6 @@ export default function Classes() {
     }
     if (createForm.capacity <= 0) {
       toast({ title: 'Capacity must be greater than zero', status: 'warning', duration: 3000 });
-      setIsDeleting(false);
       return;
     }
     if (createForm.strength < 0) {
@@ -323,6 +327,7 @@ export default function Classes() {
         className: createForm.className.trim(),
         section: createForm.section.trim(),
         academicYear: createForm.academicYear.trim() || undefined,
+        isShared: Boolean(createForm.isShared),
         classTeacherId: createForm.classTeacherId ? Number(createForm.classTeacherId) : undefined,
         capacity: Number(createForm.capacity) || undefined,
         enrolledStudents: Number(createForm.strength) || 0,
@@ -369,6 +374,7 @@ export default function Classes() {
     const mediumChanged = normalize(form.medium) !== (selected.medium || '');
     const shiftChanged = normalize(form.shift) !== (selected.shift || '');
     const statusChanged = form.status !== (selected.status || 'active');
+    const isSharedChanged = Boolean(form.isShared) !== Boolean(selected.isShared);
     const notesChanged = normalize(form.notes) !== (selected.notes || '');
 
     const payload = {};
@@ -399,6 +405,9 @@ export default function Classes() {
     }
     if (statusChanged) {
       payload.status = form.status;
+    }
+    if (isSharedChanged) {
+      payload.isShared = Boolean(form.isShared);
     }
     if (notesChanged) {
       const value = normalize(form.notes);
@@ -656,6 +665,7 @@ export default function Classes() {
                 <Th>Section</Th>
                 <Th>Strength</Th>
                 <Th>Class Teacher</Th>
+                <Th>Shared</Th>
                 <Th>Status</Th>
                 <Th>Actions</Th>
               </Tr>
@@ -663,7 +673,7 @@ export default function Classes() {
             <Tbody>
               {isLoading && (
                 <Tr>
-                  <Td colSpan={6}>
+                  <Td colSpan={7}>
                     <Flex align="center" justify="center" py={6}>
                       <Spinner size="sm" mr={3} />
                       <Text>Loading classes...</Text>
@@ -673,7 +683,7 @@ export default function Classes() {
               )}
               {!isLoading && filteredClasses.length === 0 && (
                 <Tr>
-                  <Td colSpan={6}>
+                  <Td colSpan={7}>
                     <Text textAlign="center" py={6} color={textColorSecondary}>No classes found. Create one to get started.</Text>
                   </Td>
                 </Tr>
@@ -687,6 +697,11 @@ export default function Classes() {
                     <Td>{c.section}</Td>
                     <Td>{c.strength}</Td>
                     <Td>{teacherLabel}</Td>
+                    <Td>
+                      <Badge colorScheme={c.isShared ? 'purple' : 'gray'}>
+                        {c.isShared ? 'Yes' : 'No'}
+                      </Badge>
+                    </Td>
                     <Td>
                       <Badge colorScheme={isFull ? 'orange' : 'green'}>
                         {isFull ? 'Full' : 'Open'}
@@ -743,6 +758,15 @@ export default function Classes() {
               <FormControl>
                 <FormLabel>Academic Year</FormLabel>
                 <Input value={createForm.academicYear} onChange={(e) => handleCreateChange('academicYear', e.target.value)} placeholder="e.g. 2024-2025" />
+              </FormControl>
+              <FormControl>
+                <FormLabel>Shared Across Campuses</FormLabel>
+                <Checkbox
+                  isChecked={Boolean(createForm.isShared)}
+                  onChange={(e) => handleCreateChange('isShared', e.target.checked)}
+                >
+                  Shared
+                </Checkbox>
               </FormControl>
               <FormControl>
                 <FormLabel>Class Teacher</FormLabel>
@@ -840,6 +864,7 @@ export default function Classes() {
                   <Box><Text fontWeight='600'>Class</Text><Text>{selected.className}</Text></Box>
                   <Box><Text fontWeight='600'>Section</Text><Text>{selected.section}</Text></Box>
                   <Box><Text fontWeight='600'>Academic Year</Text><Text>{selected.academicYear || '—'}</Text></Box>
+                  <Box><Text fontWeight='600'>Shared</Text><Text>{selected.isShared ? 'Yes' : 'No'}</Text></Box>
                   <Box><Text fontWeight='600'>Strength</Text><Text>{selected.strength}</Text></Box>
                   <Box><Text fontWeight='600'>Capacity</Text><Text>{selected.capacity || '—'}</Text></Box>
                   <Box>
@@ -903,6 +928,15 @@ export default function Classes() {
                   <FormControl>
                     <FormLabel>Academic Year</FormLabel>
                     <Input value={form.academicYear} onChange={(e) => handleEditChange('academicYear', e.target.value)} placeholder="e.g. 2024-2025" />
+                  </FormControl>
+                  <FormControl>
+                    <FormLabel>Shared Across Campuses</FormLabel>
+                    <Checkbox
+                      isChecked={Boolean(form.isShared)}
+                      onChange={(e) => handleEditChange('isShared', e.target.checked)}
+                    >
+                      Shared
+                    </Checkbox>
                   </FormControl>
                   <FormControl>
                     <FormLabel>Status</FormLabel>

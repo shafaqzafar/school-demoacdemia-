@@ -9,4 +9,4 @@ export const setPermissions = (role, perms) => http.put(`/rbac/permissions/${enc
 // Module-level access
 export const getModules = () => http.get('/rbac/modules');
 export const setModules = (role, data) => http.put(`/rbac/modules/${encodeURIComponent(role)}`, data);
-export const getMyModules = () => http.get('/rbac/my-modules');
+export const getMyModules = () => http.get('/rbac/my-modules', { skipUnauthorizedHandler: true });

@@ -8,4 +8,5 @@ export * as sharedContentApi from './sharedContent';
 export * as classesApi from './classes';
 export * as subjectsApi from './subjects';
 export * as campusesApi from './campuses';
+export * as masterDataApi from './masterData';
 export { http, setAuthToken, setUnauthorizedHandler } from '../http';

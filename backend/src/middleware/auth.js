@@ -41,6 +41,8 @@ export const authenticate = async (req, res, next) => {
 export const authorize = (...roles) => (req, res, next) => {
   if (!roles.length) return next();
   const role = req.user?.role;
+  if (role === 'superadmin' && (roles.includes('admin') || roles.includes('owner'))) return next();
+
   if (!role || !roles.includes(role)) return res.status(403).json({ message: 'Forbidden' });
   next();
 };

@@ -26,6 +26,19 @@ import useClassOptions from '../../../../hooks/useClassOptions';
 import { campusesApi } from '../../../../services/api';
 import { useAuth } from '../../../../contexts/AuthContext';
 
+const toDateInputValue = (value) => {
+  if (!value) return '';
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
+    const d = new Date(trimmed);
+    return Number.isNaN(d.getTime()) ? '' : d.toISOString().slice(0, 10);
+  }
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? '' : d.toISOString().slice(0, 10);
+};
+
 function AcademicInfoForm() {
   const { campusId: activeCampusId } = useAuth();
   const dispatch = useAppDispatch();
@@ -259,7 +272,7 @@ function AcademicInfoForm() {
         <FormLabel>Admission Date</FormLabel>
         <Input
           type="date"
-          value={academicInfo.admissionDate || new Date().toISOString().split('T')[0]}
+          value={toDateInputValue(academicInfo.admissionDate) || new Date().toISOString().split('T')[0]}
           onChange={(e) => handleInputChange('admissionDate', e.target.value)}
         />
       </FormControl>
@@ -296,7 +309,7 @@ function AcademicInfoForm() {
           <FormLabel>Last Attended Date</FormLabel>
           <Input
             type="date"
-            value={academicInfo.previousEducation?.lastAttendedDate || ''}
+            value={toDateInputValue(academicInfo.previousEducation?.lastAttendedDate)}
             onChange={(e) => handlePreviousEducationChange('lastAttendedDate', e.target.value)}
           />
         </FormControl>

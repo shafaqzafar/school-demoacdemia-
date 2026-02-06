@@ -40,7 +40,7 @@ import {
 import { AddIcon, CheckIcon } from '@chakra-ui/icons';
 import Card from 'components/card/Card.js';
 import useApi from '../../../../hooks/useApi';
-import { teachersApi, campusesApi } from '../../../../services/api';
+import { teachersApi, campusesApi, masterDataApi, classesApi } from '../../../../services/api';
 import { useAuth } from '../../../../contexts/AuthContext';
 
 const createInitialFormState = () => ({
@@ -99,8 +99,34 @@ const AddTeacher = () => {
   const [classes, setClasses] = useState([]);
   const [newSubject, setNewSubject] = useState('');
   const [newClass, setNewClass] = useState('');
-  const subjectSuggestions = useMemo(() => ['Mathematics', 'Physics', 'Chemistry', 'Biology', 'English', 'Computer Science', 'Urdu', 'Islamiat'], []);
-  const classSuggestions = useMemo(() => ['9A', '9B', '10A', '10B', '11A', '11B', '12A', '12B'], []);
+  const [masterSubjects, setMasterSubjects] = useState([]);
+  const [masterDepartments, setMasterDepartments] = useState([]);
+  const [masterDesignations, setMasterDesignations] = useState([]);
+  const [masterClassSections, setMasterClassSections] = useState([]);
+  const [masterDataError, setMasterDataError] = useState('');
+
+  const subjectSuggestions = useMemo(() => {
+    const fromApi = masterSubjects
+      .map((s) => (s?.name || '').trim())
+      .filter(Boolean);
+    return fromApi.length
+      ? fromApi
+      : ['Mathematics', 'Physics', 'Chemistry', 'Biology', 'English', 'Computer Science', 'Urdu', 'Islamiat'];
+  }, [masterSubjects]);
+
+  const classSuggestions = useMemo(() => {
+    const fromApi = masterClassSections
+      .map((c) => {
+        const cn = String(c?.className || '').trim();
+        const sec = String(c?.section || '').trim();
+        const label = sec ? `${cn}${sec}` : cn;
+        return label.trim();
+      })
+      .filter(Boolean);
+    return fromApi.length
+      ? fromApi
+      : ['9A', '9B', '10A', '10B', '11A', '11B', '12A', '12B'];
+  }, [masterClassSections]);
 
   // Form validation state
   const [errors, setErrors] = useState({});
@@ -134,6 +160,72 @@ const AddTeacher = () => {
   const textColorSecondary = useColorModeValue('gray.600', 'gray.400');
   const brand = useColorModeValue('blue.500', 'blue.300');
   const toast = useToast();
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      setMasterDataError('');
+      const results = await Promise.allSettled([
+        masterDataApi.getSubjects(),
+        masterDataApi.getDepartments(),
+        masterDataApi.getDesignations(),
+        classesApi.list({ page: 1, pageSize: 200 }),
+      ]);
+
+      const [subjectsRes, departmentsRes, designationsRes, classSectionsRes] = results;
+
+      const errors = [];
+
+      if (subjectsRes.status === 'fulfilled') {
+        const data = Array.isArray(subjectsRes.value) ? subjectsRes.value : [];
+        if (alive) setMasterSubjects(data);
+      } else {
+        errors.push('subjects');
+        if (alive) setMasterSubjects([]);
+      }
+
+      if (departmentsRes.status === 'fulfilled') {
+        const data = Array.isArray(departmentsRes.value) ? departmentsRes.value : [];
+        if (alive) setMasterDepartments(data);
+      } else {
+        errors.push('departments');
+        if (alive) setMasterDepartments([]);
+      }
+
+      if (designationsRes.status === 'fulfilled') {
+        const data = Array.isArray(designationsRes.value) ? designationsRes.value : [];
+        if (alive) setMasterDesignations(data);
+      } else {
+        errors.push('designations');
+        if (alive) setMasterDesignations([]);
+      }
+
+      if (classSectionsRes.status === 'fulfilled') {
+        const raw = classSectionsRes.value;
+        const data = Array.isArray(raw?.rows) ? raw.rows : Array.isArray(raw) ? raw : [];
+        if (alive) setMasterClassSections(data);
+      } else {
+        errors.push('classes');
+        if (alive) setMasterClassSections([]);
+      }
+
+      if (errors.length) {
+        const msg = `Failed to load: ${errors.join(', ')}`;
+        if (alive) setMasterDataError(msg);
+        toast({
+          title: 'Master data load issue',
+          description: msg,
+          status: 'warning',
+          duration: 5000,
+          isClosable: true,
+        });
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [toast]);
 
   const resetForm = useCallback(() => {
     setFormData(createInitialFormState());
@@ -557,12 +649,54 @@ const AddTeacher = () => {
                   </FormControl>
                   <FormControl isInvalid={errors.department}>
                     <FormLabel>Department</FormLabel>
-                    <Input name='department' value={formData.department} onChange={handleChange} placeholder='e.g., Science, Humanities' />
+                    {masterDepartments.length > 0 ? (
+                      <Select
+                        name='department'
+                        value={formData.department}
+                        onChange={handleChange}
+                        placeholder='Select department'
+                      >
+                        {masterDepartments.map((d) => {
+                          const label = (d?.name || '').trim();
+                          if (!label) return null;
+                          return (
+                            <option key={d.id ?? label} value={label}>
+                              {label}
+                            </option>
+                          );
+                        })}
+                      </Select>
+                    ) : (
+                      <Input name='department' value={formData.department} onChange={handleChange} placeholder='e.g., Science, Humanities' />
+                    )}
                     {errors.department && <FormErrorMessage>{errors.department}</FormErrorMessage>}
                   </FormControl>
                   <FormControl isInvalid={errors.designation}>
                     <FormLabel>Designation</FormLabel>
-                    <Input name='designation' value={formData.designation} onChange={handleChange} placeholder='e.g., Senior Lecturer' />
+                    {masterDesignations.length > 0 ? (
+                      <Select
+                        name='designation'
+                        value={formData.designation}
+                        onChange={handleChange}
+                        placeholder='Select designation'
+                      >
+                        {masterDesignations
+                          .filter((x) => {
+                            const title = (x?.title || '').trim();
+                            return Boolean(title);
+                          })
+                          .map((d) => {
+                            const label = (d?.title || '').trim();
+                            return (
+                              <option key={d.id ?? label} value={label}>
+                                {label}
+                              </option>
+                            );
+                          })}
+                      </Select>
+                    ) : (
+                      <Input name='designation' value={formData.designation} onChange={handleChange} placeholder='e.g., Senior Lecturer' />
+                    )}
                     {errors.designation && <FormErrorMessage>{errors.designation}</FormErrorMessage>}
                   </FormControl>
                   <FormControl>

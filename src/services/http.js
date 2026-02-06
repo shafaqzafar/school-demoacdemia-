@@ -42,7 +42,7 @@ const baseURL = (
   (import.meta?.env?.DEV ? '/api' : (normalizeApiBase(config.API_BASE_URL) || '/api'))
 ).replace(/\/$/, '');
 
-const request = async (method, url, { params, data, headers } = {}) => {
+const request = async (method, url, { params, data, headers, skipUnauthorizedHandler } = {}) => {
   // Drop undefined/null query params to avoid sending 'undefined' strings
   const cleanedParams = params
     ? Object.fromEntries(
@@ -89,7 +89,16 @@ const request = async (method, url, { params, data, headers } = {}) => {
 
     if (!res.ok) {
       // Only trigger global 401 handler when a session token exists (i.e., post-login)
-      if (res.status === 401 && authToken && onUnauthorized) onUnauthorized();
+      if (res.status === 401 && authToken && onUnauthorized && !skipUnauthorizedHandler) {
+        try {
+          onUnauthorized({
+            status: res.status,
+            url,
+            method,
+            data: payload,
+          });
+        } catch (_) { }
+      }
       const error = new Error(payload?.message || 'Request failed');
       error.status = res.status;
       error.data = payload;

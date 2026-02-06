@@ -21,7 +21,7 @@ export default function StudentPerformance() {
   useEffect(() => {
     const fetchStudents = async () => {
       try {
-        const data = await studentsApi.list({ page: 1, pageSize: 1000 });
+        const data = await studentsApi.list({ page: 1, pageSize: 200 });
         setStudents(Array.isArray(data?.rows) ? data.rows : []);
       } catch (e) {
         setStudents([]);
@@ -33,7 +33,7 @@ export default function StudentPerformance() {
   useEffect(() => {
     const fetchResults = async () => {
       try {
-        const data = await resultsApi.list({ page: 1, pageSize: 2000, className: cls || undefined, section: section || undefined });
+        const data = await resultsApi.list({ page: 1, pageSize: 200, className: cls || undefined, section: section || undefined });
         setResults(Array.isArray(data?.items) ? data.items : []);
       } catch (e) {
         setResults([]);

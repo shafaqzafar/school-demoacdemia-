@@ -143,7 +143,7 @@ export default function Dashboard(props) {
 
   const filterRoutesByAccess = (allRoutes) => {
     // Owner sees everything unfiltered, even during loading
-    if (user?.role === 'owner') return allRoutes;
+    if (user?.role === 'owner' || user?.role === 'superadmin') return allRoutes;
     // During auth loading, if no user yet, return all routes to prevent blank screen
     if (!user) return allRoutes;
     // Parent: show only Parent Portal group
@@ -175,7 +175,7 @@ export default function Dashboard(props) {
         if (r.collapse && r.items) {
           if (!isModuleAllowed(r.name)) return null;
           let inner = r.items || [];
-          if (user.role !== 'owner') {
+          if (user.role !== 'owner' && user.role !== 'superadmin') {
             inner = inner.filter((it) => it.path !== '/settings/licensing');
           }
           inner = inner.filter((it) => !it.ownerOnly);
@@ -254,7 +254,7 @@ export default function Dashboard(props) {
                 }>
                   <Routes key={campusId || 'no-campus'}>
                     {getRoutes(effectiveRoutes)}
-                    {user && user.role !== 'owner' && (
+                    {user && user.role !== 'owner' && user.role !== 'superadmin' && (
                       <Route
                         path="settings/licensing"
                         element={<Navigate to="/admin/dashboard" replace />}

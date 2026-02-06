@@ -191,6 +191,8 @@ export const getDashboardPath = (role) => {
   switch (role) {
     case 'owner':
       return '/admin/settings/licensing';
+    case 'superadmin':
+      return '/admin/dashboard';
     case 'admin':
       return '/admin/dashboard';
     case 'teacher':

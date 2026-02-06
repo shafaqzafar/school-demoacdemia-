@@ -1,4 +1,4 @@
-import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
+import React, { createContext, useState, useContext, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { STORAGE_KEYS } from '../utils/constants';
 import { getDashboardPath } from '../utils/sidebarConfig';
@@ -31,6 +31,8 @@ export const AuthProvider = ({ children }) => {
     return localStorage.getItem(STORAGE_KEYS.SELECTED_CAMPUS_ID) || null;
   });
   const navigate = useNavigate();
+  const unauthorizedSeq = useRef(0);
+  const lastUnauthorizedAt = useRef(0);
 
   const setCampusId = useCallback((id) => {
     const cid = id ? String(id) : null;
@@ -76,6 +78,47 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
+  const handleUnauthorized = useCallback(async (ctx = {}) => {
+    try {
+      const now = Date.now();
+      if (now - lastUnauthorizedAt.current < 800) return;
+      lastUnauthorizedAt.current = now;
+
+      const url = String(ctx?.url || '');
+
+      // If auth endpoints say unauthorized, the session is invalid.
+      if (url.startsWith('/auth/')) {
+        logout({ skipRemote: true });
+        return;
+      }
+
+      const seq = (unauthorizedSeq.current += 1);
+
+      // Verify session before forcing logout.
+      // This prevents random redirects when a non-auth endpoint returns 401 due to role/permissions.
+      try {
+        const fresh = await authApi.profileSafe({ skipUnauthorizedHandler: true });
+        if (seq !== unauthorizedSeq.current) return;
+        const userData = fresh?.user || null;
+        if (userData) {
+          setUser(userData);
+          setIsAuthenticated(true);
+          await refreshModuleAccess(userData.role);
+          return;
+        }
+      } catch (e) {
+        if (seq !== unauthorizedSeq.current) return;
+        const status = e?.status;
+        if (status === 401 || status === 403) {
+          logout({ skipRemote: true });
+          return;
+        }
+      }
+    } catch (_) {
+      // ignore
+    }
+  }, [logout, refreshModuleAccess]);
+
   // Initialize auth on mount: load token from storage, validate profile, set 401 handler
   useEffect(() => {
     const initAuth = async () => {
@@ -108,7 +151,7 @@ export const AuthProvider = ({ children }) => {
 
         if (token && !config.ENABLE_DEMO_AUTH) {
           try {
-            const fresh = await authApi.profile();
+            const fresh = await authApi.profileSafe({ skipUnauthorizedHandler: true });
             const userData = fresh?.user || parsedUser;
             if (userData) {
               setUser(userData);
@@ -143,25 +186,36 @@ export const AuthProvider = ({ children }) => {
       }
     };
 
-    // Global 401 handler: clear local session and redirect to sign-in without calling server
-    const handleUnauthorized = () => {
-      logout({ skipRemote: true });
-    };
     setUnauthorizedHandler(handleUnauthorized);
 
     initAuth();
     return () => setUnauthorizedHandler(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [logout]);
+  }, [handleUnauthorized]);
 
-  // Lightweight polling to apply RBAC changes quickly for all roles (including admin)
   useEffect(() => {
-    if (!user) return;
-    let timer = setInterval(() => {
+    if (!user?.role) return;
+
+    const refresh = () => {
       refreshModuleAccess(user.role);
-    }, 2000);
-    return () => clearInterval(timer);
-  }, [user, refreshModuleAccess]);
+    };
+
+    const onFocus = () => refresh();
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') refresh();
+    };
+
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
+    const timer = setInterval(refresh, 5 * 60 * 1000);
+
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      clearInterval(timer);
+    };
+  }, [user?.role, refreshModuleAccess]);
 
   // Login function
   const login = useCallback(async (email, password, remember = false, ownerKey) => {

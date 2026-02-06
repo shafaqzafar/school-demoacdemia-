@@ -34,7 +34,7 @@ export default function DueDates(){
       }
 
       try {
-        const payload = await assignmentsApi.list({ page: 1, pageSize: 500 });
+        const payload = await assignmentsApi.list({ page: 1, pageSize: 200 });
         setRows(Array.isArray(payload?.rows) ? payload.rows : []);
       } catch (e) {
         setRows([]);

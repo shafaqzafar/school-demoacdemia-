@@ -208,7 +208,7 @@ const StudentAttendance = () => {
       const start = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1).toISOString().split('T')[0];
       const end = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0).toISOString().split('T')[0];
       try {
-        const payload = await attendanceApi.list({ studentId: selectedStudent.id, startDate: start, endDate: end, pageSize: 500 });
+        const payload = await attendanceApi.list({ studentId: selectedStudent.id, startDate: start, endDate: end, pageSize: 200 });
         const rows = payload?.items || payload?.rows || (Array.isArray(payload) ? payload : []);
         const map = { ...(attendanceData[selectedStudent.id] || {}) };
         rows.forEach(r => {

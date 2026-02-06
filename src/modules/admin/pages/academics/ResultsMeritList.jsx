@@ -120,16 +120,24 @@ export default function ResultsMeritList() {
     }
     try {
       setLoading(true);
-      const params = {
-        examId: Number(examId),
-        className: cls || undefined,
-        section: section || undefined,
-        page: 1,
-        pageSize: 2000,
-      };
-      const res = await resultsApi.list(params);
-      const items = Array.isArray(res?.items) ? res.items : Array.isArray(res) ? res : [];
-      setRows(items);
+      const out = [];
+      let page = 1;
+      const pageSize = 200;
+      for (;;) {
+        const res = await resultsApi.list({
+          examId: Number(examId),
+          className: cls || undefined,
+          section: section || undefined,
+          page,
+          pageSize,
+        });
+        const items = Array.isArray(res?.items) ? res.items : Array.isArray(res) ? res : [];
+        out.push(...items);
+        if (items.length < pageSize) break;
+        page += 1;
+        if (page > 50) break;
+      }
+      setRows(out);
     } catch (e) {
       setRows([]);
       toast({ title: 'Failed to load results', description: e?.message || 'Request failed', status: 'error' });

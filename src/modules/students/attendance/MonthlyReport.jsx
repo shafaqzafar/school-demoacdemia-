@@ -63,7 +63,7 @@ export default function MonthlyReport() {
     const load = async () => {
       setLoading(true);
       try {
-        const res = await attendanceApi.list({ studentId: sid, startDate, endDate, pageSize: 500 });
+        const res = await attendanceApi.list({ studentId: sid, startDate, endDate, pageSize: 200 });
         setRecords(Array.isArray(res?.items) ? res.items : []);
       } catch {
         setRecords([]);

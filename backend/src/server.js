@@ -6,7 +6,7 @@ import fs from 'fs';
 import path from 'path';
 import url from 'url';
 import { pool, ensureAppDatabaseExists } from './config/db.js';
-import { ensureAuthSchema, ensureCampusSchema, ensureCardManagementSchema, ensureCertificatesSchema, ensureMasterDataSchema, ensurePayrollSchema, ensureSharedContentSchema } from './db/autoMigrate.js';
+import { ensureAuthSchema, ensureCampusSchema, ensureCardManagementSchema, ensureCertificatesSchema, ensureClassSectionsSchema, ensureExamResultsSchema, ensureMasterDataSchema, ensurePayrollSchema, ensureSharedContentSchema } from './db/autoMigrate.js';
 import { initDb } from './models/index.js';
 
 loadEnv();
@@ -89,6 +89,8 @@ async function boot() {
       await ensureCampusSchema();
       await ensureCardManagementSchema();
       await ensureCertificatesSchema();
+      await ensureClassSectionsSchema();
+      await ensureExamResultsSchema();
       await ensureMasterDataSchema();
       await ensurePayrollSchema();
       await ensureSharedContentSchema();

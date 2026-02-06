@@ -35,6 +35,19 @@ import {
   selectStudentFormData,
 } from '../../../../redux/features/students/studentSlice';
 
+const toDateInputValue = (value) => {
+  if (!value) return '';
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
+    const d = new Date(trimmed);
+    return Number.isNaN(d.getTime()) ? '' : d.toISOString().slice(0, 10);
+  }
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? '' : d.toISOString().slice(0, 10);
+};
+
 function FeeInfoForm() {
   const dispatch = useAppDispatch();
   const formData = useAppSelector(selectStudentFormData);
@@ -358,7 +371,7 @@ function FeeInfoForm() {
           <FormLabel>First Payment Due Date</FormLabel>
           <Input
             type="date"
-            value={feeInfo.firstPaymentDue || ''}
+            value={toDateInputValue(feeInfo.firstPaymentDue)}
             onChange={(e) => handleInputChange('firstPaymentDue', e.target.value)}
           />
         </FormControl>

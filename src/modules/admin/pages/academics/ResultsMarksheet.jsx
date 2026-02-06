@@ -99,7 +99,7 @@ export default function ResultsMarksheet() {
     let mounted = true;
     (async () => {
       try {
-        const res = await classesApi.list({ page: 1, pageSize: 500 });
+        const res = await classesApi.list({ page: 1, pageSize: 200 });
         const dataset = Array.isArray(res?.rows) ? res.rows : Array.isArray(res) ? res : [];
         const normalized = dataset
           .map((r) => ({
@@ -457,7 +457,7 @@ export default function ResultsMarksheet() {
             ))}
           </Select>
 
-          <Select placeholder="Exam" value={examId} onChange={(e) => setExamId(e.target.value)} maxW="260px" size="sm" isLoading={loadingExams}>
+          <Select placeholder="Exam" value={examId} onChange={(e) => setExamId(e.target.value)} maxW="260px" size="sm" isDisabled={loadingExams}>
             {exams.map((ex) => (
               <option key={ex.id} value={ex.id}>{ex.title || `Exam #${ex.id}`}</option>
             ))}
@@ -471,8 +471,7 @@ export default function ResultsMarksheet() {
             }}
             maxW="320px"
             size="sm"
-            isLoading={loadingClassStudents}
-            isDisabled={!studentsInClass.length && !loadingClassStudents}
+            isDisabled={loadingClassStudents || (!studentsInClass.length && !loadingClassStudents)}
           >
             {studentsInClass.map((st) => (
               <option key={st.id} value={st.id}>

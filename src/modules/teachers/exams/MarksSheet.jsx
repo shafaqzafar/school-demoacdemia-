@@ -116,7 +116,7 @@ export default function MarksSheet() {
       setLoading(true);
       try {
         const [studentsRes, subjectsRes, examsRes] = await Promise.all([
-          studentsApi.list({ page: 1, pageSize: 1000, class: selectedClass.className, section: selectedClass.section }),
+          studentsApi.list({ page: 1, pageSize: 200, class: selectedClass.className, section: selectedClass.section }),
           classesApi.listSubjectsByClass({ className: selectedClass.className, section: selectedClass.section }),
           examsApi.list({ page: 1, pageSize: 200, className: selectedClass.className, section: selectedClass.section }),
         ]);
@@ -164,7 +164,7 @@ export default function MarksSheet() {
         return;
       }
       try {
-        const data = await resultsApi.list({ page: 1, pageSize: 2000, examId: Number(examId), studentId: Number(studentId) });
+        const data = await resultsApi.list({ page: 1, pageSize: 200, examId: Number(examId), studentId: Number(studentId) });
         const items = Array.isArray(data?.items) ? data.items : [];
         if (!mounted) return;
         setResults(items);

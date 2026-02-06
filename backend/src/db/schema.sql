@@ -658,6 +658,19 @@ CREATE TABLE IF NOT EXISTS exam_results (
   UNIQUE(exam_id, student_id, subject)
 );
 
+ALTER TABLE exam_results
+  ADD COLUMN IF NOT EXISTS campus_id INTEGER REFERENCES campuses(id) ON DELETE SET NULL;
+
+ALTER TABLE exam_results
+  ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT NOW();
+
+ALTER TABLE exam_results
+  ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT NOW();
+
+CREATE INDEX IF NOT EXISTS idx_exam_results_exam ON exam_results (exam_id);
+CREATE INDEX IF NOT EXISTS idx_exam_results_student ON exam_results (student_id);
+CREATE INDEX IF NOT EXISTS idx_exam_results_campus ON exam_results (campus_id);
+
 -- Helpful indexes
 CREATE INDEX IF NOT EXISTS idx_attendance_student_date ON attendance_records (student_id, date);
 CREATE INDEX IF NOT EXISTS idx_fee_invoices_status ON fee_invoices (status);

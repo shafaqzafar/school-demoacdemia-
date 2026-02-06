@@ -69,7 +69,6 @@ export default function Permissions() {
 
   // Licensing cap: Always fetch licensed modules (what the Owner purchased)
   useEffect(() => {
-    let timer;
     const fetchLic = async () => {
       try {
         const st = await authApi.status();
@@ -78,9 +77,18 @@ export default function Permissions() {
       } catch (_) { }
     };
     fetchLic();
-    // Light polling for fast, dynamic updates when Owner changes licensing
-    timer = setInterval(fetchLic, 3000);
-    return () => { if (timer) clearInterval(timer); };
+
+    const onFocus = () => fetchLic();
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') fetchLic();
+    };
+
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
   }, []);
 
   // Determine which modules to show based on licensing. Owner sees all.

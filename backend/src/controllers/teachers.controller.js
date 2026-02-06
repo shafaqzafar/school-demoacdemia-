@@ -565,8 +565,13 @@ export const removeSubject = async (req, res, next) => {
 
 export const listSubjectAssignments = async (req, res, next) => {
   try {
+    let teacherId = req.query.teacherId ? Number(req.query.teacherId) : undefined;
+    if (req.user?.role === 'teacher') {
+      const self = await teachers.getByUserId(req.user.id);
+      teacherId = self?.id;
+    }
     const assignments = await teachers.listSubjectAssignments({
-      teacherId: req.query.teacherId ? Number(req.query.teacherId) : undefined,
+      teacherId,
       subjectId: req.query.subjectId ? Number(req.query.subjectId) : undefined,
       campusId: req.user?.campusId,
     });
