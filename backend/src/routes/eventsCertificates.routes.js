@@ -49,6 +49,27 @@ const getSelfPerson = async ({ role, userId, campusId }) => {
     return { attendanceType, personId: row.id, personName: row.name };
 };
 
+const normalizeTeacherAttendanceStatus = (value) => {
+    const v = String(value || '').toLowerCase();
+    if (v === 'present' || v === 'late' || v === 'absent') return v;
+    // teacher_attendance currently allows only present/absent/late
+    if (v === 'leave') return 'absent';
+    return 'present';
+};
+
+const normalizeStudentAttendanceStatus = (value) => {
+    const v = String(value || '').toLowerCase();
+    if (v === 'present' || v === 'absent' || v === 'late' || v === 'leave') return v;
+    return 'present';
+};
+
+const toLocalISODate = (d) => {
+    const dt = d instanceof Date ? d : new Date(d);
+    if (Number.isNaN(dt.getTime())) return new Date().toISOString().slice(0, 10);
+    const local = new Date(dt.getTime() - dt.getTimezoneOffset() * 60000);
+    return local.toISOString().slice(0, 10);
+};
+
 const upsertTodayAttendance = async ({ attendanceType, personId, personName, campusId, qrCode, status, markedBy }) => {
     const { start, end } = todayRange();
     const existing = await QRAttendance.findOne({
@@ -72,10 +93,40 @@ const upsertTodayAttendance = async ({ attendanceType, personId, personName, cam
             status: status || existing.status || 'Present',
             markedBy: markedBy ? String(markedBy) : existing.markedBy,
         });
+
+        // Keep student attendance_records in sync so it shows in Student Attendance module
+        if (attendanceType === 'Student') {
+            const day = toLocalISODate(now);
+            const st = normalizeStudentAttendanceStatus(status || existing.status || 'Present');
+            await query(
+                `INSERT INTO attendance_records (student_id, date, status, remarks, created_by, check_in_time, campus_id)
+                 VALUES ($1, $2, $3, NULL, NULL, NOW()::time, $4)
+                 ON CONFLICT (student_id, date)
+                 DO UPDATE SET status = EXCLUDED.status,
+                               check_in_time = COALESCE(attendance_records.check_in_time, EXCLUDED.check_in_time)`,
+                [Number(personId), day, st, Number(campusId)]
+            );
+        }
+
+        // Keep teacher_attendance in sync so it shows in Teacher Attendance module
+        if (attendanceType === 'Teacher') {
+            const day = toLocalISODate(now);
+            const st = normalizeTeacherAttendanceStatus(status || existing.status || 'Present');
+            const checkIn = st === 'present' || st === 'late' ? 'NOW()::time' : 'NULL';
+            await query(
+                `INSERT INTO teacher_attendance (teacher_id, attendance_date, status, check_in_time, check_out_time, remarks, recorded_by)
+                 VALUES ($1, $2, $3, ${checkIn}, NULL, NULL, NULL)
+                 ON CONFLICT (teacher_id, attendance_date)
+                 DO UPDATE SET status = EXCLUDED.status,
+                               check_in_time = COALESCE(teacher_attendance.check_in_time, EXCLUDED.check_in_time),
+                               updated_at = NOW()`,
+                [Number(personId), day, st]
+            );
+        }
         return existing;
     }
 
-    return await QRAttendance.create({
+    const created = await QRAttendance.create({
         attendanceType,
         personId: Number(personId),
         personName: String(personName || 'Unknown'),
@@ -86,6 +137,38 @@ const upsertTodayAttendance = async ({ attendanceType, personId, personName, cam
         markedBy: markedBy ? String(markedBy) : null,
         campusId: Number(campusId),
     });
+
+    // Keep student attendance_records in sync so it shows in Student Attendance module
+    if (attendanceType === 'Student') {
+        const day = toLocalISODate(now);
+        const st = normalizeStudentAttendanceStatus(status || 'Present');
+        await query(
+            `INSERT INTO attendance_records (student_id, date, status, remarks, created_by, check_in_time, campus_id)
+             VALUES ($1, $2, $3, NULL, NULL, NOW()::time, $4)
+             ON CONFLICT (student_id, date)
+             DO UPDATE SET status = EXCLUDED.status,
+                           check_in_time = COALESCE(attendance_records.check_in_time, EXCLUDED.check_in_time)`,
+            [Number(personId), day, st, Number(campusId)]
+        );
+    }
+
+    // Keep teacher_attendance in sync so it shows in Teacher Attendance module
+    if (attendanceType === 'Teacher') {
+        const day = toLocalISODate(now);
+        const st = normalizeTeacherAttendanceStatus(status || 'Present');
+        const checkIn = st === 'present' || st === 'late' ? 'NOW()::time' : 'NULL';
+        await query(
+            `INSERT INTO teacher_attendance (teacher_id, attendance_date, status, check_in_time, check_out_time, remarks, recorded_by)
+             VALUES ($1, $2, $3, ${checkIn}, NULL, NULL, NULL)
+             ON CONFLICT (teacher_id, attendance_date)
+             DO UPDATE SET status = EXCLUDED.status,
+                           check_in_time = COALESCE(teacher_attendance.check_in_time, EXCLUDED.check_in_time),
+                           updated_at = NOW()`,
+            [Number(personId), day, st]
+        );
+    }
+
+    return created;
 };
 
 const scanSessionHandler = async (req, res) => {
@@ -252,7 +335,11 @@ router.get('/qr-attendance', authenticate, async (req, res) => {
             const startDate = req.query?.startDate ? new Date(req.query.startDate) : null;
             const endDate = req.query?.endDate ? new Date(req.query.endDate) : null;
             if (startDate && endDate && !Number.isNaN(startDate.getTime()) && !Number.isNaN(endDate.getTime())) {
-                return { start: startDate, end: endDate };
+                const s = new Date(startDate);
+                s.setHours(0, 0, 0, 0);
+                const e = new Date(endDate);
+                e.setHours(23, 59, 59, 999);
+                return { start: s, end: e };
             }
             if (req.query?.date) {
                 const d = new Date(req.query.date);

@@ -1,6 +1,7 @@
 import { http } from '../http';
 
 export const list = (params) => http.get('/teachers', { params });
+export const me = () => http.get('/teachers/me');
 export const getById = (id) => http.get(`/teachers/${id}`);
 export const create = (data) => http.post('/teachers', data);
 export const update = (id, data) => http.put(`/teachers/${id}`, data);
@@ -13,6 +14,7 @@ export const deleteScheduleSlot = (id) => http.delete(`/teachers/schedules/${id}
 export const listMyClasses = (params) => http.get('/teachers/my-classes', { params });
 export const listStudentsBySubject = (params) => http.get('/teachers/students-by-subject', { params });
 export const getAttendance = (params) => http.get('/teachers/attendance', { params });
+export const markMyAttendance = (data) => http.post('/teachers/attendance/me', data);
 export const saveAttendance = (data) => http.post('/teachers/attendance', data);
 export const getPayrolls = (params) => http.get('/teachers/payrolls', { params });
 export const createPayroll = (data) => http.post('/teachers/payrolls', data);

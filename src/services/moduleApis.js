@@ -34,6 +34,60 @@ apiClient.interceptors.request.use((config) => {
     return config;
 });
 
+// Auto-refresh token on 401 once and retry
+apiClient.interceptors.response.use(
+    (response) => response,
+    async (error) => {
+        try {
+            const status = error?.response?.status;
+            const original = error?.config;
+            if (status !== 401 || !original || original.__retry) {
+                throw error;
+            }
+
+            const refreshToken =
+                localStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN) ||
+                sessionStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN);
+
+            if (!refreshToken) {
+                throw error;
+            }
+
+            original.__retry = true;
+
+            const refreshUrl = `${API_URL.replace(/\/$/, '')}/auth/refresh`;
+            const refreshRes = await axios.post(
+                refreshUrl,
+                { refreshToken },
+                { headers: { 'Content-Type': 'application/json' } }
+            );
+
+            const newToken = refreshRes?.data?.token || refreshRes?.data?.accessToken;
+            const newRefresh = refreshRes?.data?.refreshToken;
+            if (!newToken) {
+                throw error;
+            }
+
+            // Persist in the same storage that currently has AUTH_TOKEN
+            const useLocal = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN) != null;
+            const primary = useLocal ? localStorage : sessionStorage;
+            const secondary = useLocal ? sessionStorage : localStorage;
+            primary.setItem(STORAGE_KEYS.AUTH_TOKEN, newToken);
+            if (newRefresh) primary.setItem(STORAGE_KEYS.REFRESH_TOKEN, newRefresh);
+            secondary.removeItem(STORAGE_KEYS.AUTH_TOKEN);
+            secondary.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
+
+            // Update this axios instance header and retry original request
+            apiClient.defaults.headers.Authorization = `Bearer ${newToken}`;
+            original.headers = original.headers || {};
+            original.headers.Authorization = `Bearer ${newToken}`;
+            return apiClient(original);
+        } catch (e) {
+            return Promise.reject(e);
+        }
+    }
+);
+
 // Generic CRUD operations factory
 const createCRUDApi = (endpoint) => ({
     list: async (params = {}) => {

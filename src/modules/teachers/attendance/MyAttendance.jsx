@@ -7,6 +7,7 @@ import {
   Button,
   Input,
   Badge,
+  Select,
   useColorModeValue,
   Table,
   Thead,
@@ -20,29 +21,50 @@ import {
 import Card from '../../../components/card/Card';
 import * as teachersApi from '../../../services/api/teachers';
 
+const toLocalISODate = (d) => {
+  const dt = d instanceof Date ? d : new Date(d);
+  if (Number.isNaN(dt.getTime())) return new Date().toISOString().slice(0, 10);
+  const local = new Date(dt.getTime() - dt.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 10);
+};
+
 export default function MyAttendance() {
   const textSecondary = useColorModeValue('gray.600', 'gray.400');
   const toast = useToast();
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(() => toLocalISODate(new Date()));
   const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [record, setRecord] = useState(null);
   const [teacher, setTeacher] = useState(null);
 
-  const statusColor = useMemo(() => {
+  const uiStatus = useMemo(() => {
     const st = String(record?.status || '').toLowerCase();
+    const remarks = String(record?.remarks || '').toLowerCase();
+    if (st === 'absent' && remarks === 'leave') return 'leave';
+    if (st === 'present' || st === 'late' || st === 'absent') return st;
+    return '';
+  }, [record?.status, record?.remarks]);
+
+  const statusColor = useMemo(() => {
+    const st = uiStatus;
     if (st === 'present') return 'green';
     if (st === 'late') return 'orange';
     if (st === 'absent') return 'red';
+    if (st === 'leave') return 'purple';
     return 'gray';
-  }, [record?.status]);
+  }, [uiStatus]);
+
+  const statusLabel = useMemo(() => {
+    if (!uiStatus) return 'not marked';
+    return uiStatus;
+  }, [uiStatus]);
 
   useEffect(() => {
     let mounted = true;
     const loadSelf = async () => {
       try {
-        const payload = await teachersApi.list({ pageSize: 1 });
-        const rows = Array.isArray(payload?.rows) ? payload.rows : (Array.isArray(payload) ? payload : []);
-        if (mounted) setTeacher(rows?.[0] || null);
+        const payload = await teachersApi.me();
+        if (mounted) setTeacher(payload || null);
       } catch {
         if (mounted) setTeacher(null);
       }
@@ -56,7 +78,10 @@ export default function MyAttendance() {
     try {
       const res = await teachersApi.getAttendance({ date });
       const rows = Array.isArray(res?.records) ? res.records : [];
-      setRecord(rows[0] || null);
+      const found = teacher?.id
+        ? rows.find((r) => String(r?.teacherId) === String(teacher.id))
+        : rows[0];
+      setRecord(found || null);
     } catch (e) {
       setRecord(null);
       toast({
@@ -73,7 +98,26 @@ export default function MyAttendance() {
 
   useEffect(() => {
     load();
-  }, [date]);
+  }, [date, teacher?.id]);
+
+  const save = async () => {
+    try {
+      if (!date) return;
+      if (!uiStatus) {
+        toast({ title: 'Please select a status', status: 'warning', duration: 2500, isClosable: true });
+        return;
+      }
+      setSaving(true);
+      const statusToSend = uiStatus === 'leave' ? 'leave' : uiStatus;
+      const res = await teachersApi.markMyAttendance({ date, status: statusToSend });
+      if (res?.record) setRecord(res.record);
+      toast({ title: 'Attendance updated', status: 'success', duration: 2000, isClosable: true });
+    } catch (e) {
+      toast({ title: 'Failed to update attendance', description: e?.message || 'Request failed', status: 'error', duration: 3500, isClosable: true });
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <Box pt={{ base: '130px', md: '80px', xl: '80px' }}>
@@ -94,8 +138,47 @@ export default function MyAttendance() {
             {loading ? (
               <Spinner size='sm' />
             ) : (
-              <Badge colorScheme={statusColor}>{record?.status || 'not marked'}</Badge>
+              <Badge colorScheme={statusColor}>{statusLabel}</Badge>
             )}
+          </HStack>
+        </Flex>
+
+        <Flex mt={4} justify='space-between' align='center' flexWrap='wrap' rowGap={3}>
+          <HStack spacing={3}>
+            <Select
+              value={uiStatus || ''}
+              onChange={(e) => {
+                const v = e.target.value;
+                if (!v) {
+                  setRecord((prev) => (prev ? { ...prev, status: '', remarks: '' } : prev));
+                  return;
+                }
+                if (v === 'leave') {
+                  setRecord((prev) => ({
+                    ...(prev || {}),
+                    status: 'absent',
+                    remarks: 'Leave',
+                  }));
+                } else {
+                  setRecord((prev) => ({
+                    ...(prev || {}),
+                    status: v,
+                    remarks: prev?.remarks === 'Leave' ? null : prev?.remarks,
+                  }));
+                }
+              }}
+              maxW='180px'
+              isDisabled={loading}
+              placeholder='Select status'
+            >
+              <option value='present'>Present</option>
+              <option value='late'>Late</option>
+              <option value='absent'>Absent</option>
+              <option value='leave'>Leave</option>
+            </Select>
+            <Button colorScheme='green' onClick={save} isLoading={saving} isDisabled={loading}>
+              Save
+            </Button>
           </HStack>
         </Flex>
       </Card>
@@ -114,7 +197,7 @@ export default function MyAttendance() {
           <Tbody>
             <Tr>
               <Td>{date}</Td>
-              <Td><Badge colorScheme={statusColor}>{record?.status || 'not marked'}</Badge></Td>
+              <Td><Badge colorScheme={statusColor}>{statusLabel}</Badge></Td>
               <Td>{record?.checkInTime || '-'}</Td>
               <Td>{record?.checkOutTime || '-'}</Td>
               <Td>{record?.remarks || '-'}</Td>

@@ -182,7 +182,7 @@ export const getSMSRoutes = () => {
           hidden: true,
         },
         {
-          name: 'Performance',
+          name: 'Performance & Marks',
           layout: '/admin',
           path: '/students/performance',
           component: lazy(() => import('./modules/admin/pages/Students/StudentPerformancePage')),
@@ -230,7 +230,7 @@ export const getSMSRoutes = () => {
           name: 'QR Attendance Logs',
           layout: '/admin',
           path: '/students/attendance/qr/logs',
-          component: <QRAttendanceLogs />,
+          component: <QRAttendanceLogs defaultAttendanceType="Student" lockType />,
         },
       ],
     },
@@ -288,7 +288,19 @@ export const getSMSRoutes = () => {
           name: 'QR Attendance',
           layout: '/admin',
           path: '/teachers/attendance/qr',
-          component: <AdminQRAttendance />,
+          component: (
+            <AdminQRAttendance
+              defaultAttendanceType="Teacher"
+              defaultSessionType="Teacher"
+              logsPath="/admin/teachers/attendance/qr/logs"
+            />
+          ),
+        },
+        {
+          name: 'QR Attendance Logs',
+          layout: '/admin',
+          path: '/teachers/attendance/qr/logs',
+          component: <QRAttendanceLogs defaultAttendanceType="Teacher" lockType />,
         },
       ],
     },

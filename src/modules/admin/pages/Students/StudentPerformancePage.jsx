@@ -5,6 +5,7 @@ import {
   Modal, ModalOverlay, ModalContent, ModalHeader, ModalCloseButton, ModalBody, ModalFooter,
   FormControl, FormLabel, VStack
 } from '@chakra-ui/react';
+import { useNavigate } from 'react-router-dom';
 import Card from '../../../../components/card/Card';
 import MiniStatistics from '../../../../components/card/MiniStatistics';
 import IconBox from '../../../../components/icons/IconBox';
@@ -53,12 +54,39 @@ function normalizePerformance(payload) {
 export default function StudentPerformancePage() {
   const toast = useToast();
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [students, setStudents] = useState([]);
+  const [selectedClassKey, setSelectedClassKey] = useState('');
   const [selectedId, setSelectedId] = useState('');
+  const [classExams, setClassExams] = useState([]);
+  const [selectedExamId, setSelectedExamId] = useState('');
+  const [loadingExams, setLoadingExams] = useState(false);
   const [loading, setLoading] = useState(false);
   const [perf, setPerf] = useState({ average: 0, totalExams: 0, subjects: [], recentResults: [] });
   const [busy, setBusy] = useState(false);
   const { isOpen, onOpen, onClose } = useDisclosure();
+
+  const classOptions = useMemo(() => {
+    const uniq = new Map();
+    (students || []).forEach((s) => {
+      const className = s?.class;
+      const section = s?.section;
+      if (!className || !section) return;
+      const key = `${className}::${section}`;
+      if (!uniq.has(key)) uniq.set(key, { className, section });
+    });
+    return Array.from(uniq.values()).sort((a, b) => {
+      const c = String(a.className).localeCompare(String(b.className), undefined, { numeric: true });
+      if (c !== 0) return c;
+      return String(a.section).localeCompare(String(b.section));
+    });
+  }, [students]);
+
+  const filteredStudents = useMemo(() => {
+    if (!selectedClassKey) return students || [];
+    const [className, section] = selectedClassKey.split('::');
+    return (students || []).filter((s) => String(s?.class || '') === String(className) && String(s?.section || '') === String(section));
+  }, [selectedClassKey, students]);
 
   // Load students
   useEffect(() => {
@@ -67,13 +95,59 @@ export default function StudentPerformancePage() {
         const payload = await studentsApi.list({ pageSize: 200 });
         const rows = Array.isArray(payload?.rows) ? payload.rows : (Array.isArray(payload) ? payload : []);
         setStudents(rows || []);
-        if ((rows || []).length) setSelectedId(String(rows[0].id));
+        if ((rows || []).length) {
+          const first = rows[0];
+          if (first?.class && first?.section) setSelectedClassKey(`${first.class}::${first.section}`);
+          setSelectedId(String(first.id));
+        }
       } catch (e) {
         toast({ title: 'Failed to load students', status: 'error' });
       }
     };
     load();
   }, []);
+
+  useEffect(() => {
+    if (!selectedClassKey) return;
+    if (!filteredStudents.length) {
+      setSelectedId('');
+      return;
+    }
+    const exists = filteredStudents.some((s) => String(s?.id) === String(selectedId));
+    if (!exists) setSelectedId(String(filteredStudents[0].id));
+  }, [filteredStudents, selectedClassKey]);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        if (!selectedClassKey) {
+          setClassExams([]);
+          setSelectedExamId('');
+          return;
+        }
+        const [className, section] = selectedClassKey.split('::');
+        setLoadingExams(true);
+        const res = await examsApi.list({ pageSize: 200, className, section });
+        const items = Array.isArray(res?.items) ? res.items : (Array.isArray(res) ? res : []);
+        if (!mounted) return;
+        setClassExams(items || []);
+        if (!items.length) {
+          setSelectedExamId('');
+          return;
+        }
+        const stillExists = items.some((x) => String(x?.id) === String(selectedExamId));
+        if (!selectedExamId || !stillExists) setSelectedExamId(String(items[0].id));
+      } catch (_) {
+        if (!mounted) return;
+        setClassExams([]);
+        setSelectedExamId('');
+      } finally {
+        if (mounted) setLoadingExams(false);
+      }
+    })();
+    return () => { mounted = false; };
+  }, [selectedClassKey]);
 
   // Load performance for selected
   useEffect(() => {
@@ -124,6 +198,16 @@ export default function StudentPerformancePage() {
   };
 
   const handlePrint = () => window.print();
+
+  const openResultCard = () => {
+    if (!selectedClassKey || !selectedId || !selectedExamId) {
+      toast({ title: 'Please select class, student and exam', status: 'warning' });
+      return;
+    }
+    const [className, section] = selectedClassKey.split('::');
+    const params = new URLSearchParams({ className, section, studentId: String(selectedId), examId: String(selectedExamId) });
+    navigate(`/admin/academics/results/result-card?${params.toString()}`);
+  };
 
   const safeSubjects = useMemo(() => (Array.isArray(perf?.subjects) ? perf.subjects : []), [perf]);
   const safeRecent = useMemo(() => (Array.isArray(perf?.recentResults) ? perf.recentResults : []), [perf]);
@@ -219,18 +303,52 @@ export default function StudentPerformancePage() {
       <Flex justify='space-between' align='center' mb='20px'>
         <Box>
           <Text fontSize='2xl' fontWeight='bold'>
-            Student Performance
+            Student Performance & Marks
           </Text>
           <Text fontSize='md' color='gray.500'>
-            Analyze academic performance and results
+            Analyze performance, marks and result cards
           </Text>
         </Box>
         <Flex gap={2} align='center' flexWrap='nowrap'>
-          <Select size='sm' w='240px' value={selectedId} onChange={(e) => setSelectedId(e.target.value)}>
-            {students.map(s => (
+          <Select
+            size='sm'
+            w='180px'
+            value={selectedClassKey}
+            onChange={(e) => setSelectedClassKey(e.target.value)}
+            placeholder='Select Class'
+          >
+            {classOptions.map((c) => (
+              <option key={`${c.className}::${c.section}`} value={`${c.className}::${c.section}`}>
+                {c.className}-{c.section}
+              </option>
+            ))}
+          </Select>
+          <Select
+            size='sm'
+            w='240px'
+            value={selectedId}
+            onChange={(e) => setSelectedId(e.target.value)}
+            placeholder='Select Student'
+          >
+            {filteredStudents.map((s) => (
               <option key={s.id} value={s.id}>{s.name} ({s.class}-{s.section})</option>
             ))}
           </Select>
+          <Select
+            size='sm'
+            w='200px'
+            value={selectedExamId}
+            onChange={(e) => setSelectedExamId(e.target.value)}
+            placeholder={loadingExams ? 'Loading exams...' : 'Select Exam'}
+            isDisabled={loadingExams}
+          >
+            {(classExams || []).map((ex) => (
+              <option key={ex.id} value={ex.id}>{ex.title || `Exam #${ex.id}`}</option>
+            ))}
+          </Select>
+          <Button size='sm' variant='outline' onClick={openResultCard}>
+            Result Card
+          </Button>
           {['admin', 'owner', 'teacher', 'super-admin'].includes(user?.role) && (
             <Button size='sm' colorScheme='blue' leftIcon={<MdAdd />} onClick={onOpen}>
               Add Performance

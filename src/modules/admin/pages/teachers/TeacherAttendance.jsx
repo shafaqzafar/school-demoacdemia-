@@ -106,9 +106,12 @@ const TeacherAttendance = () => {
           photo: record.avatar || '',
           employeeId: record.employeeId || '—',
           department: record.department || '—',
-          status: record.status || 'absent',
+          status: String(record.status || 'absent').toLowerCase() === 'absent' && String(record?.remarks || '').toLowerCase() === 'leave'
+            ? 'leave'
+            : (record.status || 'absent'),
           checkInTime: normalizeTime(record.checkInTime),
           checkOutTime: normalizeTime(record.checkOutTime),
+          remarks: record?.remarks || '',
         }));
       setTeacherRows(normalized);
       setAttendanceMap(() => {
@@ -118,6 +121,7 @@ const TeacherAttendance = () => {
             status: record.status || 'absent',
             checkInTime: record.checkInTime || '',
             checkOutTime: record.checkOutTime || '',
+            remarks: record.remarks || '',
           };
         });
         return next;
@@ -217,11 +221,18 @@ const TeacherAttendance = () => {
     try {
       const entries = teacherRows.map((row) => {
         const entry = attendanceMap[row.teacherId] || defaultEntry;
+        const uiStatus = String(entry.status || 'absent').toLowerCase();
+        const payloadStatus = uiStatus === 'leave' ? 'absent' : (entry.status || 'absent');
+        const payloadRemarks = uiStatus === 'leave' ? 'Leave' : (entry.remarks || undefined);
+        const cleanedRemarks = typeof payloadRemarks === 'string' && payloadRemarks.trim().length
+          ? payloadRemarks.trim()
+          : undefined;
         return {
           teacherId: row.teacherId,
-          status: entry.status || 'absent',
+          status: payloadStatus,
           checkInTime: entry.checkInTime || null,
           checkOutTime: entry.checkOutTime || null,
+          remarks: cleanedRemarks,
         };
       });
       await teacherApi.saveAttendance({ date: selectedDate, entries, campusId: campusId });
@@ -505,6 +516,7 @@ const TeacherAttendance = () => {
                           <option value="present">Present</option>
                           <option value="absent">Absent</option>
                           <option value="late">Late</option>
+                          <option value="leave">Leave</option>
                         </Select>
                       </Td>
                       <Td>
@@ -512,7 +524,7 @@ const TeacherAttendance = () => {
                           type="time"
                           value={attendanceEntry.checkInTime || ''}
                           onChange={(e) => handleTimeChange(teacher.teacherId, 'checkInTime', e.target.value)}
-                          isDisabled={attendanceStatus === 'absent'}
+                          isDisabled={attendanceStatus === 'absent' || attendanceStatus === 'leave'}
                         />
                       </Td>
                       <Td>
@@ -520,7 +532,7 @@ const TeacherAttendance = () => {
                           type="time"
                           value={attendanceEntry.checkOutTime || ''}
                           onChange={(e) => handleTimeChange(teacher.teacherId, 'checkOutTime', e.target.value)}
-                          isDisabled={attendanceStatus === 'absent'}
+                          isDisabled={attendanceStatus === 'absent' || attendanceStatus === 'leave'}
                         />
                       </Td>
                     </Tr>

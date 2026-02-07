@@ -4,6 +4,8 @@ import {
   Box,
   Button,
   Flex,
+  Grid,
+  GridItem,
   SimpleGrid,
   Text,
   VStack,
@@ -332,6 +334,7 @@ export default function AdminDashboard() {
           <StatCard
             title="Total Students"
             value={formatNumber(overview.totalStudents)}
+            valueFontSize='3xl'
             subValue="+42"
             note="Active this academic year"
             icon={FaUserGraduate}
@@ -342,6 +345,7 @@ export default function AdminDashboard() {
           <StatCard
             title="Total Teachers"
             value={formatNumber(overview.totalTeachers)}
+            valueFontSize='3xl'
             subValue="82"
             note="Staff currently on duty"
             icon={FaChalkboardTeacher}
@@ -407,12 +411,40 @@ export default function AdminDashboard() {
                 height={220}
               />
             </Flex>
-            <SimpleGrid columns={2} spacing={2} textAlign='center'>
-              <Box><Text fontSize='xs' color='gray.400'>Present</Text><Text fontWeight='bold' color='green.500'>{studentStats.present}</Text></Box>
-              <Box><Text fontSize='xs' color='gray.400'>Absent</Text><Text fontWeight='bold' color='red.500'>{studentStats.absent}</Text></Box>
-              <Box><Text fontSize='xs' color='gray.400'>Late</Text><Text fontWeight='bold' color='orange.400'>{studentStats.late}</Text></Box>
-              <Box><Text fontSize='xs' color='gray.400'>Total</Text><Text fontWeight='bold'>{studentStats.total}</Text></Box>
-            </SimpleGrid>
+            <Grid templateColumns={{ base: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' }} gap={3}>
+              <Box textAlign='center' py='2' borderRadius='12px' bg={useColorModeValue('green.50', 'whiteAlpha.50')}>
+                <Text fontSize='xs' color='gray.500' fontWeight='700'>Present</Text>
+                <Text fontWeight='800' fontSize='lg' color='green.500'>{studentStats.present}</Text>
+              </Box>
+              <Box textAlign='center' py='2' borderRadius='12px' bg={useColorModeValue('red.50', 'whiteAlpha.50')}>
+                <Text fontSize='xs' color='gray.500' fontWeight='700'>Absent</Text>
+                <Text fontWeight='800' fontSize='lg' color='red.500'>{studentStats.absent}</Text>
+              </Box>
+              <Box textAlign='center' py='2' borderRadius='12px' bg={useColorModeValue('orange.50', 'whiteAlpha.50')}>
+                <Text fontSize='xs' color='gray.500' fontWeight='700'>Late</Text>
+                <Text fontWeight='800' fontSize='lg' color='orange.500'>{studentStats.late}</Text>
+              </Box>
+              <Box textAlign='center' py='2' borderRadius='12px' bg={useColorModeValue('yellow.50', 'whiteAlpha.50')}>
+                <Text fontSize='xs' color='gray.500' fontWeight='700'>Leave</Text>
+                <Text fontWeight='800' fontSize='lg' color='yellow.600'>{studentStats.leave}</Text>
+              </Box>
+
+              <GridItem colSpan={{ base: 2, md: 4 }}>
+                <Flex
+                  mt='1'
+                  p='3'
+                  borderRadius='14px'
+                  bg={useColorModeValue('gray.50', 'whiteAlpha.50')}
+                  justify='space-between'
+                  align='center'
+                >
+                  <Text fontSize='sm' color='gray.600' fontWeight='800'>Total Students</Text>
+                  <Text fontSize='2xl' fontWeight='900' color={useColorModeValue('gray.800', 'white')}>
+                    {studentStats.total}
+                  </Text>
+                </Flex>
+              </GridItem>
+            </Grid>
           </Card>
 
           {/* Card 2: Teacher Attendance */}
@@ -431,13 +463,40 @@ export default function AdminDashboard() {
                 height={220}
               />
             </Flex>
-            <SimpleGrid columns={2} spacing={2} textAlign='center'>
-              <Box><Text fontSize='xs' color='gray.400'>Present</Text><Text fontWeight='bold' color='green.500'>{teacherStats.present}</Text></Box>
-              <Box><Text fontSize='xs' color='gray.400'>Absent</Text><Text fontWeight='bold' color='red.500'>{teacherStats.absent}</Text></Box>
-              {/* Assuming teacherStats has late/leave for symmetry, if not 0 */}
-              <Box><Text fontSize='xs' color='gray.400'>On Leave</Text><Text fontWeight='bold' color='blue.400'>{teacherStats.leave}</Text></Box>
-              <Box><Text fontSize='xs' color='gray.400'>Total</Text><Text fontWeight='bold'>{teacherStats.total}</Text></Box>
-            </SimpleGrid>
+            <Grid templateColumns={{ base: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' }} gap={3}>
+              <Box textAlign='center' py='2' borderRadius='12px' bg={useColorModeValue('green.50', 'whiteAlpha.50')}>
+                <Text fontSize='xs' color='gray.500' fontWeight='700'>Present</Text>
+                <Text fontWeight='800' fontSize='lg' color='green.500'>{teacherStats.present}</Text>
+              </Box>
+              <Box textAlign='center' py='2' borderRadius='12px' bg={useColorModeValue('red.50', 'whiteAlpha.50')}>
+                <Text fontSize='xs' color='gray.500' fontWeight='700'>Absent</Text>
+                <Text fontWeight='800' fontSize='lg' color='red.500'>{teacherStats.absent}</Text>
+              </Box>
+              <Box textAlign='center' py='2' borderRadius='12px' bg={useColorModeValue('orange.50', 'whiteAlpha.50')}>
+                <Text fontSize='xs' color='gray.500' fontWeight='700'>Late</Text>
+                <Text fontWeight='800' fontSize='lg' color='orange.500'>{teacherStats.late}</Text>
+              </Box>
+              <Box textAlign='center' py='2' borderRadius='12px' bg={useColorModeValue('yellow.50', 'whiteAlpha.50')}>
+                <Text fontSize='xs' color='gray.500' fontWeight='700'>Leave</Text>
+                <Text fontWeight='800' fontSize='lg' color='yellow.600'>{teacherStats.leave}</Text>
+              </Box>
+
+              <GridItem colSpan={{ base: 2, md: 4 }}>
+                <Flex
+                  mt='1'
+                  p='3'
+                  borderRadius='14px'
+                  bg={useColorModeValue('gray.50', 'whiteAlpha.50')}
+                  justify='space-between'
+                  align='center'
+                >
+                  <Text fontSize='sm' color='gray.600' fontWeight='800'>Total Teachers</Text>
+                  <Text fontSize='2xl' fontWeight='900' color={useColorModeValue('gray.800', 'white')}>
+                    {teacherStats.total}
+                  </Text>
+                </Flex>
+              </GridItem>
+            </Grid>
           </Card>
 
           {/* Card 2: Fee Collection Donut */}

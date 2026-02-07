@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     Box,
     Flex,
@@ -93,18 +93,6 @@ export default function TeacherQRAttendance() {
     }, [stopScanner]);
 
     const submitAttendance = useCallback(async (qrCode) => {
-        const cid = toIntId(campusId);
-
-        if (!cid) {
-            toast({
-                title: 'Select a campus',
-                description: 'Campus is required to mark attendance.',
-                status: 'warning',
-                duration: 3500,
-                isClosable: true,
-            });
-            return;
-        }
         if (!qrCode) {
             toast({
                 title: 'No QR code',
@@ -141,7 +129,7 @@ export default function TeacherQRAttendance() {
         } finally {
             setIsSubmitting(false);
         }
-    }, [campusId, toast, user?.email, user?.name]);
+    }, [toast]);
 
     const onDetected = useCallback(async (rawValue) => {
         const code = String(rawValue || '').trim();

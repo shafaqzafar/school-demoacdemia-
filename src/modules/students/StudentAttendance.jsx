@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
   Box,
   Flex,
@@ -54,7 +54,7 @@ import { SearchIcon, ChevronLeftIcon, ChevronRightIcon } from '@chakra-ui/icons'
 import {
   MdCalendarToday, MdAccessTime, MdPersonAdd, MdPerson,
   MdCheck, MdClose, MdOutlineWatchLater, MdDateRange,
-  MdFilterList, MdRefresh, MdDownload, MdPrint
+  MdFilterList, MdRefresh, MdDownload, MdPrint, MdAvTimer
 } from 'react-icons/md';
 
 // Import custom components
@@ -158,22 +158,35 @@ const StudentAttendance = () => {
   };
 
   // Calculate attendance statistics
-  const calculateStats = (studentId) => {
-    // This would normally come from your backend
-    // For mock purposes, we'll generate random stats
-    const total = 30;
-    const present = Math.floor(Math.random() * 25) + 5;
-    const absent = Math.floor(Math.random() * (30 - present));
-    const leave = total - present - absent;
-
-    return {
-      total,
-      present,
-      absent,
-      leave,
-      percentage: Math.round((present / total) * 100)
-    };
+  const calculateStats = () => {
+    return { total: 0, present: 0, absent: 0, late: 0, leave: 0, percentage: 0 };
   };
+
+  const monthlyStats = useMemo(() => {
+    if (!selectedStudent) return { total: 0, present: 0, absent: 0, late: 0, leave: 0, percentage: 0 };
+    const data = attendanceData[selectedStudent.id] || {};
+    const start = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
+    const end = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0);
+    const total = end.getDate();
+
+    let present = 0;
+    let absent = 0;
+    let late = 0;
+    let leave = 0;
+    Object.entries(data).forEach(([dateStr, row]) => {
+      const d = new Date(dateStr);
+      if (Number.isNaN(d.getTime())) return;
+      if (d < start || d > end) return;
+      const st = String(row?.status || '').toLowerCase();
+      if (st === 'present') present += 1;
+      else if (st === 'absent') absent += 1;
+      else if (st === 'late') late += 1;
+      else if (st === 'leave') leave += 1;
+    });
+    const attended = present + late;
+    const percentage = total ? Math.round((attended / total) * 1000) / 10 : 0;
+    return { total, present, absent, late, leave, percentage };
+  }, [attendanceData, currentMonth, selectedStudent]);
 
   // Generate status badge based on attendance status
   const getStatusBadge = (status) => {
@@ -675,6 +688,15 @@ const StudentAttendance = () => {
                               }}
                             />
                             <IconButton
+                              aria-label="Mark late"
+                              icon={<MdAvTimer />}
+                              colorScheme="orange"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                markAttendance(student.id, 'late', 'checkIn');
+                              }}
+                            />
+                            <IconButton
                               aria-label="Mark on leave"
                               icon={<MdCalendarToday />}
                               colorScheme="orange"
@@ -794,22 +816,22 @@ const StudentAttendance = () => {
                         <Grid templateColumns="repeat(4, 1fr)" gap={4} mt={4}>
                           <Card bg="green.50" p={3} borderRadius="md">
                             <Text fontWeight="bold" color="green.500">Present</Text>
-                            <Heading size="md">22</Heading>
-                            <Text fontSize="sm">73.3%</Text>
+                            <Heading size="md">{monthlyStats.present}</Heading>
+                            <Text fontSize="sm">{monthlyStats.percentage}%</Text>
                           </Card>
                           <Card bg="red.50" p={3} borderRadius="md">
                             <Text fontWeight="bold" color="red.500">Absent</Text>
-                            <Heading size="md">5</Heading>
-                            <Text fontSize="sm">16.7%</Text>
+                            <Heading size="md">{monthlyStats.absent}</Heading>
+                            <Text fontSize="sm"> </Text>
                           </Card>
                           <Card bg="yellow.50" p={3} borderRadius="md">
                             <Text fontWeight="bold" color="yellow.500">Leave</Text>
-                            <Heading size="md">3</Heading>
-                            <Text fontSize="sm">10.0%</Text>
+                            <Heading size="md">{monthlyStats.leave}</Heading>
+                            <Text fontSize="sm"> </Text>
                           </Card>
                           <Card bg="blue.50" p={3} borderRadius="md">
                             <Text fontWeight="bold" color="blue.500">Total</Text>
-                            <Heading size="md">30</Heading>
+                            <Heading size="md">{monthlyStats.total}</Heading>
                             <Text fontSize="sm">Days</Text>
                           </Card>
                         </Grid>

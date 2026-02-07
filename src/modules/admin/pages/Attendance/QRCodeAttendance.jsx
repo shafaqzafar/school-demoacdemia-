@@ -8,15 +8,21 @@ import {
     useColorModeValue,
     VStack,
     HStack,
+    InputGroup,
+    InputLeftElement,
     Input,
+    List,
+    ListItem,
+    Icon,
     useToast,
     Spinner,
     Select,
+    useOutsideClick,
 } from '@chakra-ui/react';
 import { MdQrCodeScanner } from 'react-icons/md';
 import Card from '../../../../components/card/Card';
 import { useAuth } from '../../../../contexts/AuthContext';
-import { qrAttendanceApi } from '../../../../services/api';
+import { qrAttendanceApi, studentsApi, teachersApi } from '../../../../services/api';
 import { useNavigate } from 'react-router-dom';
 
 const toIntId = (value) => {
@@ -71,7 +77,11 @@ const parseQrPayload = (raw, fallbackType) => {
     return { attendanceType: fallbackType, personId: null, personName: null, qrCode: text };
 };
 
-export default function AdminQRAttendance() {
+export default function AdminQRAttendance({
+    defaultAttendanceType = 'Student',
+    defaultSessionType = 'Student',
+    logsPath = '/admin/students/attendance/qr/logs',
+} = {}) {
     const textColorSecondary = useColorModeValue('gray.600', 'gray.400');
     const toast = useToast();
     const { user, campusId } = useAuth();
@@ -83,8 +93,8 @@ export default function AdminQRAttendance() {
     const zxingRef = useRef(null);
     const zxingStopRef = useRef(null);
 
-    const [attendanceType, setAttendanceType] = useState('Student');
-    const [sessionType, setSessionType] = useState('Student');
+    const [attendanceType, setAttendanceType] = useState(defaultAttendanceType);
+    const [sessionType, setSessionType] = useState(defaultSessionType);
     const [sessionMinutes, setSessionMinutes] = useState('3');
     const [sessionPayload, setSessionPayload] = useState(null);
     const [creatingSession, setCreatingSession] = useState(false);
@@ -98,9 +108,112 @@ export default function AdminQRAttendance() {
     const [lastMarkedAt, setLastMarkedAt] = useState(null);
     const [error, setError] = useState(null);
 
+    const personLookupRef = useRef(null);
+    const personLookupTimerRef = useRef(null);
+    const lastEditedFieldRef = useRef(null);
+    const suppressLookupRef = useRef(false);
+    const [personLookupLoading, setPersonLookupLoading] = useState(false);
+    const [personLookupOpen, setPersonLookupOpen] = useState(false);
+    const [personLookupResults, setPersonLookupResults] = useState([]);
+
+    useOutsideClick({
+        ref: personLookupRef,
+        handler: () => setPersonLookupOpen(false),
+    });
+
     const supportsBarcodeDetector = useMemo(() => {
         return typeof window !== 'undefined' && 'BarcodeDetector' in window;
     }, []);
+
+    const normalizePeopleRows = useCallback((payload) => {
+        if (Array.isArray(payload)) return payload;
+        if (Array.isArray(payload?.rows)) return payload.rows;
+        if (Array.isArray(payload?.items)) return payload.items;
+        return [];
+    }, []);
+
+    const toLookupItem = useCallback((raw) => {
+        const id = raw?.id ?? raw?._id;
+        const name = raw?.name ?? raw?.fullName ?? raw?.employeeName ?? raw?.studentName;
+        const roll = raw?.rollNumber ?? raw?.roll_no ?? raw?.roll;
+        const emp = raw?.employeeId ?? raw?.employee_id;
+        const cls = raw?.class ?? raw?.className;
+        const sec = raw?.section ?? raw?.sectionName;
+        const secondary = attendanceType === 'Student'
+            ? (roll ? `Roll: ${roll}` : (cls && sec ? `${cls}-${sec}` : (cls || sec || '')))
+            : (emp ? `Emp: ${emp}` : (raw?.designation || raw?.department || ''));
+        return {
+            id: id != null ? String(id) : '',
+            name: name != null ? String(name) : '',
+            secondary: secondary != null ? String(secondary) : '',
+            raw,
+        };
+    }, [attendanceType]);
+
+    const fetchPeople = useCallback(async (query) => {
+        const q = String(query || '').trim();
+        if (!q) {
+            setPersonLookupResults([]);
+            setPersonLookupOpen(false);
+            return;
+        }
+
+        setPersonLookupLoading(true);
+        try {
+            const params = { q, pageSize: 8 };
+            const cid = toIntId(campusId);
+            if (cid) params.campusId = cid;
+
+            const payload = attendanceType === 'Student'
+                ? await studentsApi.list(params)
+                : await teachersApi.list(params);
+
+            const rows = normalizePeopleRows(payload);
+            const items = rows.map(toLookupItem).filter((it) => it.id && it.name);
+            setPersonLookupResults(items);
+            setPersonLookupOpen(true);
+        } catch (_) {
+            setPersonLookupResults([]);
+            setPersonLookupOpen(false);
+        } finally {
+            setPersonLookupLoading(false);
+        }
+    }, [attendanceType, campusId, normalizePeopleRows, toLookupItem]);
+
+    useEffect(() => {
+        if (suppressLookupRef.current) return;
+
+        const field = lastEditedFieldRef.current;
+        const query = field === 'id' ? manualPersonId : manualPersonName;
+
+        if (personLookupTimerRef.current) {
+            clearTimeout(personLookupTimerRef.current);
+            personLookupTimerRef.current = null;
+        }
+
+        if (!field) return;
+        if (!String(query || '').trim()) {
+            setPersonLookupResults([]);
+            setPersonLookupOpen(false);
+            return;
+        }
+
+        personLookupTimerRef.current = setTimeout(() => {
+            fetchPeople(query);
+        }, 350);
+
+        return () => {
+            if (personLookupTimerRef.current) {
+                clearTimeout(personLookupTimerRef.current);
+                personLookupTimerRef.current = null;
+            }
+        };
+    }, [fetchPeople, manualPersonId, manualPersonName]);
+
+    useEffect(() => {
+        setPersonLookupResults([]);
+        setPersonLookupOpen(false);
+    }, [attendanceType]);
 
     const stopScanner = useCallback(() => {
         if (zxingStopRef.current) {
@@ -245,8 +358,11 @@ export default function AdminQRAttendance() {
         setLastCode(parsed.qrCode);
         setManualCode(parsed.qrCode);
         setAttendanceType(parsed.attendanceType);
+        suppressLookupRef.current = true;
         setManualPersonId(parsed.personId ? String(parsed.personId) : '');
         setManualPersonName(parsed.personName || '');
+        lastEditedFieldRef.current = null;
+        setTimeout(() => { suppressLookupRef.current = false; }, 0);
 
         await submitAttendance(parsed);
     }, [attendanceType, lastCode, submitAttendance]);
@@ -345,7 +461,7 @@ export default function AdminQRAttendance() {
                     <Text color={textColorSecondary}>Scan QR codes to mark attendance for Students or Staff</Text>
                 </Box>
                 <HStack spacing={3}>
-                    <Button variant="outline" onClick={() => navigate('/admin/students/attendance/qr/logs')}>View Logs</Button>
+                    <Button variant="outline" onClick={() => navigate(logsPath)}>View Logs</Button>
                     {!isScanning ? (
                         <Button
                             leftIcon={<MdQrCodeScanner />}
@@ -401,34 +517,108 @@ export default function AdminQRAttendance() {
                                     </Text>
                                 </Box>
                             </Box>
+
                         )}
-                    </Box>
 
-                    <Text>Use this scanner to mark attendance by scanning ID cards or QR codes.</Text>
-
-                    <HStack spacing={3} flexWrap="wrap">
+                        <Box ref={personLookupRef} position="relative">
+                    <HStack spacing={3} align="end" flexWrap="wrap">
                         <Box minW={{ base: '100%', md: '220px' }}>
                             <Text fontWeight="700" mb={1}>Attendance Type</Text>
                             <Select value={attendanceType} onChange={(e) => setAttendanceType(e.target.value)}>
                                 <option value="Student">Student</option>
-                                <option value="Teacher">Teacher</option>
+                                <option value="Teacher">Staff</option>
                             </Select>
                         </Box>
                         <Box minW={{ base: '100%', md: '220px' }}>
                             <Text fontWeight="700" mb={1}>Person ID</Text>
-                            <Input value={manualPersonId} onChange={(e) => setManualPersonId(e.target.value)} placeholder="e.g. 123" />
+                            <InputGroup>
+                                <InputLeftElement pointerEvents="none">
+                                    {personLookupLoading && lastEditedFieldRef.current === 'id' ? <Spinner size="sm" /> : <Icon as={MdQrCodeScanner} color="gray.400" />}
+                                </InputLeftElement>
+                                <Input
+                                    value={manualPersonId}
+                                    onChange={(e) => {
+                                        lastEditedFieldRef.current = 'id';
+                                        setManualPersonId(e.target.value);
+                                    }}
+                                    onFocus={() => {
+                                        lastEditedFieldRef.current = 'id';
+                                        if (personLookupResults.length > 0) setPersonLookupOpen(true);
+                                    }}
+                                    placeholder="e.g. 123"
+                                />
+                            </InputGroup>
                         </Box>
                         <Box flex="1" minW={{ base: '100%', md: '260px' }}>
                             <Text fontWeight="700" mb={1}>Person Name</Text>
-                            <Input value={manualPersonName} onChange={(e) => setManualPersonName(e.target.value)} placeholder="Optional" />
+                            <InputGroup>
+                                <InputLeftElement pointerEvents="none">
+                                    {personLookupLoading && lastEditedFieldRef.current === 'name' ? <Spinner size="sm" /> : <Icon as={MdQrCodeScanner} color="gray.400" />}
+                                </InputLeftElement>
+                                <Input
+                                    value={manualPersonName}
+                                    onChange={(e) => {
+                                        lastEditedFieldRef.current = 'name';
+                                        setManualPersonName(e.target.value);
+                                    }}
+                                    onFocus={() => {
+                                        lastEditedFieldRef.current = 'name';
+                                        if (personLookupResults.length > 0) setPersonLookupOpen(true);
+                                    }}
+                                    placeholder={attendanceType === 'Student' ? 'Type student name' : 'Type staff name'}
+                                />
+                            </InputGroup>
                         </Box>
                     </HStack>
 
+                    {personLookupOpen && personLookupResults.length > 0 && (
+                        <List
+                            position="absolute"
+                            top="100%"
+                            left={0}
+                            right={0}
+                            bg="white"
+                            _dark={{ bg: 'gray.700', borderColor: 'gray.600' }}
+                            boxShadow="xl"
+                            borderRadius="12px"
+                            mt={2}
+                            zIndex={100}
+                            borderWidth="1px"
+                            overflow="hidden"
+                            borderColor="gray.100"
+                        >
+                            {personLookupResults.map((p) => (
+                                <ListItem
+                                    key={`${attendanceType}-${p.id}`}
+                                    p={3}
+                                    cursor="pointer"
+                                    _hover={{ bg: 'blue.50', _dark: { bg: 'gray.600' } }}
+                                    onClick={() => {
+                                        suppressLookupRef.current = true;
+                                        setManualPersonId(p.id);
+                                        setManualPersonName(p.name);
+                                        lastEditedFieldRef.current = null;
+                                        setPersonLookupOpen(false);
+                                        setTimeout(() => { suppressLookupRef.current = false; }, 0);
+                                    }}
+                                    borderBottomWidth="1px"
+                                    _last={{ borderBottomWidth: 0 }}
+                                    borderColor="gray.50"
+                                    _dark={{ borderColor: 'gray.600' }}
+                                >
+                                    <Box>
+                                        <Text fontWeight="bold" fontSize="sm">{p.name}</Text>
+                                        <Text fontSize="xs" color="gray.500">ID: {p.id}{p.secondary ? ` · ${p.secondary}` : ''}</Text>
+                                    </Box>
+                                </ListItem>
+                            ))}
+                        </List>
+                    )}
+                        </Box>
+
+                    </Box>
+
                     <Box
-                        bg="gray.100"
-                        h="300px"
-                        borderRadius="md"
-                        overflow="hidden"
                         display="flex"
                         alignItems="center"
                         justifyContent="center"

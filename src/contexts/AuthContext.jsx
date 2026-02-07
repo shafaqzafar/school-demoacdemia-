@@ -54,8 +54,10 @@ export const AuthProvider = ({ children }) => {
     } catch (_) { }
     // Clear both storages to fully sign out
     sessionStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
+    sessionStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
     sessionStorage.removeItem(STORAGE_KEYS.USER_DATA);
     localStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
+    localStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
     localStorage.removeItem(STORAGE_KEYS.USER_DATA);
     localStorage.removeItem(STORAGE_KEYS.SELECTED_CAMPUS_ID);
     setAuthToken(null);
@@ -163,8 +165,10 @@ export const AuthProvider = ({ children }) => {
             // Invalid token -> clear and reset
             if (status === 401 || status === 403) {
               primary.removeItem(STORAGE_KEYS.AUTH_TOKEN);
+              primary.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
               primary.removeItem(STORAGE_KEYS.USER_DATA);
               secondary.removeItem(STORAGE_KEYS.AUTH_TOKEN);
+              secondary.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
               secondary.removeItem(STORAGE_KEYS.USER_DATA);
               setAuthToken(null);
               setUser(null);
@@ -177,8 +181,10 @@ export const AuthProvider = ({ children }) => {
         console.error('Error initializing auth:', e);
         // hard reset storages on init failure
         sessionStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
+        sessionStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
         sessionStorage.removeItem(STORAGE_KEYS.USER_DATA);
         localStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
+        localStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
         localStorage.removeItem(STORAGE_KEYS.USER_DATA);
         setAuthToken(null);
       } finally {
@@ -225,6 +231,7 @@ export const AuthProvider = ({ children }) => {
       if (!email || !password) throw new Error('Email and password are required');
 
       let token;
+      let refreshToken;
       let userData;
 
       // Demo-auth fallback when enabled
@@ -246,6 +253,7 @@ export const AuthProvider = ({ children }) => {
         const looksEmailOrPhone = emailRegex.test(id) || phoneRegex.test(id);
         const res = await authApi.login({ email: looksEmailOrPhone ? id : undefined, username: looksEmailOrPhone ? undefined : id, password, ownerKey });
         token = res?.token || res?.accessToken;
+        refreshToken = res?.refreshToken;
         userData = res?.user || null;
         if (!token || !userData) throw new Error('Invalid auth response');
       }
@@ -256,8 +264,12 @@ export const AuthProvider = ({ children }) => {
 
       // Persist token/user in chosen storage and clear the other to avoid ambiguity
       primary.setItem(STORAGE_KEYS.AUTH_TOKEN, token);
+      if (typeof refreshToken === 'string' && refreshToken) {
+        primary.setItem(STORAGE_KEYS.REFRESH_TOKEN, refreshToken);
+      }
       primary.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(userData));
       secondary.removeItem(STORAGE_KEYS.AUTH_TOKEN);
+      secondary.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
       secondary.removeItem(STORAGE_KEYS.USER_DATA);
 
       setUser(userData);

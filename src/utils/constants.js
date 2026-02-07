@@ -226,6 +226,7 @@ export const DATE_FORMATS = {
 // Local Storage Keys
 export const STORAGE_KEYS = {
   AUTH_TOKEN: 'sms_auth_token',
+  REFRESH_TOKEN: 'sms_refresh_token',
   USER_DATA: 'sms_user_data',
   THEME: 'sms_theme',
   LANGUAGE: 'sms_language',

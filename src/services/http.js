@@ -1,4 +1,5 @@
 import { config } from '../config/env';
+import { STORAGE_KEYS } from '../utils/constants';
 
 let authToken = null;
 let onUnauthorized = null;
@@ -42,7 +43,57 @@ const baseURL = (
   (import.meta?.env?.DEV ? '/api' : (normalizeApiBase(config.API_BASE_URL) || '/api'))
 ).replace(/\/$/, '');
 
-const request = async (method, url, { params, data, headers, skipUnauthorizedHandler } = {}) => {
+const getStoredRefreshToken = () => {
+  try {
+    return (
+      localStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN) ||
+      sessionStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN)
+    );
+  } catch (_) {
+    return null;
+  }
+};
+
+const persistNewTokens = ({ token, refreshToken } = {}) => {
+  if (!token) return;
+  try {
+    // Prefer whichever storage currently holds AUTH_TOKEN; fallback to session
+    const useLocal = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN) != null;
+    const primary = useLocal ? localStorage : sessionStorage;
+    const secondary = useLocal ? sessionStorage : localStorage;
+
+    primary.setItem(STORAGE_KEYS.AUTH_TOKEN, token);
+    if (refreshToken) primary.setItem(STORAGE_KEYS.REFRESH_TOKEN, refreshToken);
+    // Clear secondary to avoid ambiguity
+    secondary.removeItem(STORAGE_KEYS.AUTH_TOKEN);
+    secondary.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
+  } catch (_) {}
+};
+
+const refreshAccessToken = async () => {
+  const rt = getStoredRefreshToken();
+  if (!rt) return null;
+  const refreshUrl = baseURL + '/auth/refresh';
+  const fetcher = withTimeout(null, config.REQUEST_TIMEOUT_MS);
+  const res = await fetcher.exec(refreshUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+    body: JSON.stringify({ refreshToken: rt }),
+    cache: 'no-store'
+  });
+  const contentType = res.headers.get('content-type') || '';
+  const isJSON = contentType.includes('application/json');
+  const payload = isJSON ? await res.json() : await res.text();
+  if (!res.ok) {
+    const error = new Error(payload?.message || 'Refresh failed');
+    error.status = res.status;
+    error.data = payload;
+    throw error;
+  }
+  return payload;
+};
+
+const request = async (method, url, { params, data, headers, skipUnauthorizedHandler, _retry } = {}) => {
   // Drop undefined/null query params to avoid sending 'undefined' strings
   const cleanedParams = params
     ? Object.fromEntries(
@@ -88,6 +139,22 @@ const request = async (method, url, { params, data, headers, skipUnauthorizedHan
     const payload = isJSON ? await res.json() : await res.text();
 
     if (!res.ok) {
+      // If access token expired, try refresh once and retry the original request.
+      if (res.status === 401 && authToken && !_retry) {
+        try {
+          const refreshed = await refreshAccessToken();
+          const newToken = refreshed?.token || refreshed?.accessToken;
+          const newRefresh = refreshed?.refreshToken;
+          if (newToken) {
+            setAuthToken(newToken);
+            persistNewTokens({ token: newToken, refreshToken: newRefresh });
+            return await request(method, url, { params, data, headers, skipUnauthorizedHandler, _retry: true });
+          }
+        } catch (_) {
+          // fall through to unauthorized handler
+        }
+      }
+
       // Only trigger global 401 handler when a session token exists (i.e., post-login)
       if (res.status === 401 && authToken && onUnauthorized && !skipUnauthorizedHandler) {
         try {
@@ -99,6 +166,7 @@ const request = async (method, url, { params, data, headers, skipUnauthorizedHan
           });
         } catch (_) { }
       }
+
       const error = new Error(payload?.message || 'Request failed');
       error.status = res.status;
       error.data = payload;

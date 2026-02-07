@@ -23,6 +23,12 @@ router.get(
   teacherController.list
 );
 
+router.get(
+  '/me',
+  authenticate,
+  teacherController.getMe
+);
+
 const optionalString = (field) => body(field).optional({ checkFalsy: true }).isString().trim();
 
 const sharedOptionalValidators = [
@@ -109,6 +115,18 @@ router.get(
   [query('date').isISO8601(), query('teacherId').optional().isInt({ min: 1 })],
   validate,
   teacherController.listAttendance
+);
+
+router.post(
+  '/attendance/me',
+  authenticate,
+  [
+    body('date').isISO8601(),
+    body('status').isString().trim().notEmpty(),
+    body('remarks').optional({ checkFalsy: true }).isString().trim(),
+  ],
+  validate,
+  teacherController.markMyAttendance
 );
 
 router.post(

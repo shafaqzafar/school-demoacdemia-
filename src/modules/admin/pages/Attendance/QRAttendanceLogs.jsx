@@ -41,7 +41,10 @@ const formatDateTime = (d) => {
 
 const safeFilePart = (v) => String(v || '').replace(/[^a-z0-9\-_. ]/gi, '').trim().replace(/\s+/g, '_');
 
-export default function QRAttendanceLogs() {
+export default function QRAttendanceLogs({
+  defaultAttendanceType = 'all',
+  lockType = false,
+} = {}) {
   const toast = useToast();
   const { campusId } = useAuth();
 
@@ -50,10 +53,14 @@ export default function QRAttendanceLogs() {
 
   const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
 
-  const [attendanceType, setAttendanceType] = useState('all');
+  const [attendanceType, setAttendanceType] = useState(defaultAttendanceType);
   const [fromDate, setFromDate] = useState(today);
   const [toDate, setToDate] = useState(today);
   const [search, setSearch] = useState('');
+
+  useEffect(() => {
+    setAttendanceType(defaultAttendanceType);
+  }, [defaultAttendanceType]);
 
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -193,8 +200,13 @@ export default function QRAttendanceLogs() {
 
       <Card p={4} mb={5}>
         <Flex gap={3} direction={{ base: 'column', md: 'row' }} align={{ md: 'center' }}>
-          <Select maxW="200px" value={attendanceType} onChange={(e) => setAttendanceType(e.target.value)}>
-            <option value="all">All Types</option>
+          <Select
+            maxW="200px"
+            value={attendanceType}
+            onChange={(e) => setAttendanceType(e.target.value)}
+            isDisabled={lockType}
+          >
+            {!lockType && <option value="all">All Types</option>}
             <option value="Student">Student</option>
             <option value="Teacher">Teacher</option>
           </Select>

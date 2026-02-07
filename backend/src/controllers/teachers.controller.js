@@ -175,6 +175,56 @@ export const list = async (req, res, next) => {
   }
 };
 
+export const markMyAttendance = async (req, res, next) => {
+  try {
+    if (req.user?.role !== 'teacher') {
+      return res.status(403).json({ message: 'Forbidden' });
+    }
+    const self = await teachers.getByUserId(req.user.id);
+    if (!self) return res.status(404).json({ message: 'Teacher profile not found' });
+
+    const date = req.body?.date;
+    if (!date) return res.status(400).json({ message: 'date is required' });
+
+    const rawStatus = String(req.body?.status || '').toLowerCase();
+    const normalized = rawStatus === 'leave'
+      ? { status: 'absent', remarks: 'Leave' }
+      : { status: rawStatus, remarks: req.body?.remarks };
+
+    if (!['present', 'absent', 'late'].includes(normalized.status)) {
+      return res.status(400).json({ message: 'Invalid status' });
+    }
+
+    const now = new Date();
+    const hh = String(now.getHours()).padStart(2, '0');
+    const mm = String(now.getMinutes()).padStart(2, '0');
+    const checkInTime = normalized.status === 'present' || normalized.status === 'late'
+      ? `${hh}:${mm}`
+      : null;
+
+    const records = await teachers.upsertAttendanceEntries({
+      date,
+      recordedBy: null,
+      entries: [
+        {
+          teacherId: self.id,
+          status: normalized.status,
+          checkInTime,
+          checkOutTime: null,
+          remarks: normalized.remarks ?? null,
+        },
+      ],
+    });
+
+    const record = Array.isArray(records)
+      ? records.find((r) => String(r?.teacherId) === String(self.id))
+      : null;
+    return res.json({ success: true, record: record || null });
+  } catch (e) {
+    next(e);
+  }
+};
+
 export const getById = async (req, res, next) => {
   try {
     if (req.user?.role === 'teacher') {
@@ -306,6 +356,19 @@ export const updateScheduleSlot = async (req, res, next) => {
     const updated = await teachers.updateScheduleSlot(Number(req.params.scheduleId), req.body);
     if (!updated) return res.status(404).json({ message: 'Schedule slot not found' });
     return res.json(updated);
+  } catch (e) {
+    next(e);
+  }
+};
+
+export const getMe = async (req, res, next) => {
+  try {
+    if (req.user?.role !== 'teacher') {
+      return res.status(403).json({ message: 'Forbidden' });
+    }
+    const self = await teachers.getByUserId(req.user.id);
+    if (!self) return res.status(404).json({ message: 'Teacher profile not found' });
+    return res.json(self);
   } catch (e) {
     next(e);
   }

@@ -10,7 +10,7 @@ import {
     useColorModeValue,
 } from '@chakra-ui/react';
 
-const StatCard = ({ title, value, subValue, note, icon, trend, trendValue, colorScheme = 'blue' }) => {
+const StatCard = ({ title, value, subValue, note, icon, trend, trendValue, colorScheme = 'blue', valueFontSize = '2xl' }) => {
     // Professional Pastel Palette with polished accents
     const colors = {
         blue: { bg: '#E3F2FD', text: '#1565C0', iconBg: '#FFFFFF', border: '#BBDEFB' },
@@ -76,7 +76,7 @@ const StatCard = ({ title, value, subValue, note, icon, trend, trendValue, color
                 <Text color={color} fontSize='xs' fontWeight='700' textTransform="uppercase" letterSpacing="0.8px" opacity={0.8}>
                     {title}
                 </Text>
-                <Text color={color} fontSize='2xl' fontWeight='800' letterSpacing="-0.5px">
+                <Text color={color} fontSize={valueFontSize} fontWeight='800' letterSpacing="-0.5px">
                     {value}
                 </Text>
                 {subValue && (

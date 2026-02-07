@@ -24,6 +24,7 @@ import {
   NumberInputField,
   Divider,
 } from '@chakra-ui/react';
+import { useLocation } from 'react-router-dom';
 import Card from 'components/card/Card';
 import { MdPrint, MdRefresh, MdSave } from 'react-icons/md';
 
@@ -112,125 +113,162 @@ const buildPrintHtml = ({
       <meta name="viewport" content="width=device-width, initial-scale=1" />
       <title>Result Card</title>
       <style>
-        @page { size: A4; margin: 12mm; }
+        @page { size: A4; margin: 10mm; }
         * { box-sizing: border-box; }
         html, body { background: #fff; }
-        body { margin: 0; color: #111; font-family: Arial, Helvetica, sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-        .page { width: 210mm; min-height: 297mm; margin: 0 auto; padding: 0; }
-        .card { border: 1px solid #d7dbe0; border-radius: 10px; padding: 16px; }
-        .top { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
-        .title { font-size: 20px; font-weight: 800; line-height: 1.1; }
-        .sub { font-size: 12px; color: #5b6470; margin-top: 2px; }
-        .pill { display: inline-block; font-size: 12px; font-weight: 700; padding: 6px 10px; border-radius: 999px; border: 1px solid #d7dbe0; }
-        .pill.pass { background: #e8fff3; border-color: #b7f5d3; }
-        .pill.fail { background: #ffecec; border-color: #ffc2c2; }
-        .meta { font-size: 12px; color: #5b6470; margin-top: 6px; }
-        .divider { height: 1px; background: #d7dbe0; margin: 12px 0; }
-        .info { display: flex; gap: 16px; flex-wrap: wrap; }
-        .info .block { flex: 1; min-width: 190px; }
-        .label { font-size: 12px; color: #5b6470; }
-        .value { font-size: 13px; font-weight: 700; margin-top: 2px; }
-        table { width: 100%; border-collapse: collapse; border: 1px solid #d7dbe0; border-radius: 10px; overflow: hidden; }
-        thead th { background: #f3f5f7; color: #3c4450; font-size: 11px; text-align: left; padding: 8px; border-bottom: 1px solid #d7dbe0; }
-        tbody td { font-size: 12px; padding: 8px; border-bottom: 1px solid #edf0f3; }
+        body {
+          margin: 0;
+          color: #0f172a;
+          font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, Helvetica, sans-serif;
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
+        .page { width: 100%; margin: 0 auto; padding: 0; }
+        .sheet {
+          min-height: calc(297mm - 20mm);
+          border: 1px solid #e2e8f0;
+          border-radius: 14px;
+          overflow: hidden;
+        }
+        .header {
+          padding: 16px 18px;
+          background: linear-gradient(135deg, #1d4ed8 0%, #7c3aed 55%, #db2777 100%);
+          color: #fff;
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          gap: 16px;
+        }
+        .brand { display: flex; gap: 12px; align-items: flex-start; }
+        .logo {
+          width: 40px;
+          height: 40px;
+          border-radius: 12px;
+          background: rgba(255,255,255,0.18);
+          border: 1px solid rgba(255,255,255,0.30);
+        }
+        .title { font-size: 20px; font-weight: 900; line-height: 1.15; letter-spacing: .2px; }
+        .sub { font-size: 12px; opacity: 0.92; margin-top: 2px; }
+        .pill { display: inline-block; font-size: 12px; font-weight: 800; padding: 7px 11px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.35); background: rgba(255,255,255,0.16); }
+        .meta { font-size: 11px; opacity: 0.92; margin-top: 6px; }
+
+        .content { padding: 16px 18px 14px; background: #fff; }
+        .divider { height: 1px; background: #e2e8f0; margin: 12px 0; }
+        .info { display: flex; gap: 12px; flex-wrap: wrap; }
+        .info .block { flex: 1; min-width: 190px; padding: 10px 12px; border: 1px solid #e2e8f0; border-radius: 12px; background: #f8fafc; }
+        .label { font-size: 11px; color: #475569; }
+        .value { font-size: 13px; font-weight: 800; margin-top: 3px; color: #0f172a; }
+
+        table { width: 100%; border-collapse: separate; border-spacing: 0; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; }
+        thead th { background: #0b1220; color: #fff; font-size: 11px; letter-spacing: .3px; text-transform: uppercase; text-align: left; padding: 10px 10px; }
+        tbody td { font-size: 12px; padding: 10px 10px; border-bottom: 1px solid #eef2f7; }
+        tbody tr:nth-child(even) td { background: #fbfdff; }
         tbody tr:last-child td { border-bottom: none; }
         td.num, th.num { text-align: right; }
-        td.subject { font-weight: 700; }
-        td.grade { font-weight: 800; }
-        .total-row td { background: #fafbfd; font-weight: 800; border-top: 1px solid #d7dbe0; }
-        .bottom { display: flex; gap: 16px; margin-top: 14px; flex-wrap: wrap; }
+        td.subject { font-weight: 800; }
+        td.grade { font-weight: 900; }
+        .total-row td {
+          background: linear-gradient(90deg, rgba(29,78,216,0.08), rgba(124,58,237,0.08), rgba(219,39,119,0.08));
+          font-weight: 900;
+          border-top: 1px solid #e2e8f0;
+        }
+
+        .bottom { display: flex; gap: 12px; margin-top: 14px; flex-wrap: wrap; }
         .remarks { flex: 1; min-width: 260px; }
-        .remarks-box { min-height: 70px; border: 1px solid #d7dbe0; border-radius: 10px; padding: 8px 10px; white-space: pre-wrap; }
+        .remarks-box { min-height: 72px; border: 1px solid #e2e8f0; border-radius: 12px; padding: 10px 12px; background: #fff; white-space: pre-wrap; }
         .sigs { flex: 1; min-width: 260px; }
-        .sig-row { display: flex; gap: 18px; margin-top: 10px; }
+        .sig-row { display: flex; gap: 14px; margin-top: 10px; }
         .sig { flex: 1; text-align: center; }
-        .sig-line { border-bottom: 1px solid #111; height: 28px; }
-        .sig-name { font-size: 11px; font-weight: 800; margin-top: 6px; min-height: 14px; }
-        .sig-role { font-size: 11px; color: #3c4450; margin-top: 2px; }
-        .foot { margin-top: 12px; font-size: 10px; color: #5b6470; }
+        .sig-line { border-bottom: 2px solid #0f172a; height: 28px; }
+        .sig-name { font-size: 11px; font-weight: 900; margin-top: 6px; min-height: 14px; }
+        .sig-role { font-size: 11px; color: #475569; margin-top: 2px; }
+        .foot { margin-top: 12px; font-size: 10px; color: #64748b; }
         tr, td, th { page-break-inside: avoid; }
       </style>
     </head>
     <body>
       <div class="page">
-        <div class="card">
-          <div class="top">
-            <div>
-              <div class="title">${escapeHtml(titleName)}</div>
-              <div class="sub">Student Result Card</div>
+        <div class="sheet">
+          <div class="header">
+            <div class="brand">
+              <div class="logo"></div>
+              <div>
+                <div class="title">${escapeHtml(titleName)}</div>
+                <div class="sub">Performance &amp; Marks — Result Card</div>
+              </div>
             </div>
             <div style="text-align:right">
-              <span class="pill ${passLabel === 'PASS' ? 'pass' : 'fail'}">${escapeHtml(String(Math.round(totals?.percentage ?? 0)))}% • ${passLabel}</span>
+              <span class="pill">${escapeHtml(String(Math.round(totals?.percentage ?? 0)))}% • ${passLabel} • ${escapeHtml(String(totals?.grade ?? ''))}</span>
               <div class="meta">Generated: ${escapeHtml(generatedOn)}</div>
             </div>
           </div>
 
-          <div class="divider"></div>
-
-          <div class="info">
-            <div class="block">
-              <div class="label">Student</div>
-              <div class="value">${escapeHtml(studentName)}</div>
-              <div class="meta">Roll No: ${escapeHtml(roll || '—')}</div>
+          <div class="content">
+            <div class="info">
+              <div class="block">
+                <div class="label">Student</div>
+                <div class="value">${escapeHtml(studentName || '—')}</div>
+                <div class="meta">Roll No: ${escapeHtml(roll || '—')}</div>
+              </div>
+              <div class="block">
+                <div class="label">Class</div>
+                <div class="value">${escapeHtml(className || '—')}-${escapeHtml(section || '—')}</div>
+              </div>
+              <div class="block">
+                <div class="label">Exam</div>
+                <div class="value">${escapeHtml(examTitle || '—')}</div>
+                <div class="meta">Date: ${escapeHtml(examDate)}</div>
+              </div>
             </div>
-            <div class="block">
-              <div class="label">Class</div>
-              <div class="value">${escapeHtml(className || '—')}-${escapeHtml(section || '—')}</div>
-            </div>
-            <div class="block">
-              <div class="label">Exam</div>
-              <div class="value">${escapeHtml(examTitle || '—')}</div>
-              <div class="meta">Date: ${escapeHtml(examDate)}</div>
-            </div>
-          </div>
 
-          <div class="divider"></div>
+            <div class="divider"></div>
 
-          <table>
-            <thead>
-              <tr>
-                <th>Subject</th>
-                <th class="num">Full</th>
-                <th class="num">Obtained</th>
-                <th class="num">%</th>
-                <th>Grade</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${lines.join('')}
-              <tr class="total-row">
-                <td>Total</td>
-                <td class="num">${escapeHtml(String(totals?.totalMarks ?? 0))}</td>
-                <td class="num">${escapeHtml(String(totals?.obtainedMarks ?? 0))}</td>
-                <td class="num">${escapeHtml(String(Math.round(totals?.percentage ?? 0)))}%</td>
-                <td>${escapeHtml(String(totals?.grade ?? ''))}</td>
-              </tr>
-            </tbody>
-          </table>
+            <table>
+              <thead>
+                <tr>
+                  <th>Subject</th>
+                  <th class="num">Full</th>
+                  <th class="num">Obtained</th>
+                  <th class="num">%</th>
+                  <th>Grade</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${lines.join('')}
+                <tr class="total-row">
+                  <td>Total</td>
+                  <td class="num">${escapeHtml(String(totals?.totalMarks ?? 0))}</td>
+                  <td class="num">${escapeHtml(String(totals?.obtainedMarks ?? 0))}</td>
+                  <td class="num">${escapeHtml(String(Math.round(totals?.percentage ?? 0)))}%</td>
+                  <td>${escapeHtml(String(totals?.grade ?? ''))}</td>
+                </tr>
+              </tbody>
+            </table>
 
-          <div class="bottom">
-            <div class="remarks">
-              <div class="label">Remarks</div>
-              <div class="remarks-box">${remarksSafe}</div>
-            </div>
-            <div class="sigs">
-              <div class="label">Signatures</div>
-              <div class="sig-row">
-                <div class="sig">
-                  <div class="sig-line"></div>
-                  <div class="sig-name">${escapeHtml(signatureTeacher || '')}</div>
-                  <div class="sig-role">Class Teacher</div>
-                </div>
-                <div class="sig">
-                  <div class="sig-line"></div>
-                  <div class="sig-name">${escapeHtml(signaturePrincipal || '')}</div>
-                  <div class="sig-role">Principal</div>
+            <div class="bottom">
+              <div class="remarks">
+                <div class="label">Remarks</div>
+                <div class="remarks-box">${remarksSafe}</div>
+              </div>
+              <div class="sigs">
+                <div class="label">Signatures</div>
+                <div class="sig-row">
+                  <div class="sig">
+                    <div class="sig-line"></div>
+                    <div class="sig-name">${escapeHtml(signatureTeacher || '')}</div>
+                    <div class="sig-role">Class Teacher</div>
+                  </div>
+                  <div class="sig">
+                    <div class="sig-line"></div>
+                    <div class="sig-name">${escapeHtml(signaturePrincipal || '')}</div>
+                    <div class="sig-role">Principal</div>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
 
-          <div class="foot">This is a system generated document.</div>
+            <div class="foot">This is a system generated document.</div>
+          </div>
         </div>
       </div>
 
@@ -383,6 +421,7 @@ function ResultCardDocument({ resultCard, rows, totals, remarks, signatures }) {
 
 export default function ResultsResultCard() {
   const toast = useToast();
+  const location = useLocation();
   const textColor = useColorModeValue('secondaryGray.900', 'white');
   const textColorSecondary = useColorModeValue('gray.600', 'gray.400');
   const borderColor = useColorModeValue('gray.200', 'whiteAlpha.200');
@@ -400,6 +439,24 @@ export default function ResultsResultCard() {
     const [className, section] = selectedClassKey.split('::');
     return { className, section };
   }, [selectedClassKey]);
+
+  const deepLink = useMemo(() => {
+    try {
+      const sp = new URLSearchParams(location?.search || '');
+      const className = sp.get('className') || '';
+      const section = sp.get('section') || '';
+      const studentId = sp.get('studentId') || '';
+      const examId = sp.get('examId') || '';
+      return {
+        className: String(className || ''),
+        section: String(section || ''),
+        studentId: String(studentId || ''),
+        examId: String(examId || ''),
+      };
+    } catch {
+      return { className: '', section: '', studentId: '', examId: '' };
+    }
+  }, [location?.search]);
 
   const [exams, setExams] = useState([]);
   const [examId, setExamId] = useState('');
@@ -445,6 +502,11 @@ export default function ResultsResultCard() {
   }, [loadClasses]);
 
   useEffect(() => {
+    if (!deepLink?.className || !deepLink?.section) return;
+    setSelectedClassKey(`${deepLink.className}::${deepLink.section}`);
+  }, [deepLink?.className, deepLink?.section]);
+
+  useEffect(() => {
     let mounted = true;
     (async () => {
       if (!selectedClass?.className || !selectedClass?.section) {
@@ -458,7 +520,11 @@ export default function ResultsResultCard() {
         const items = Array.isArray(res?.items) ? res.items : Array.isArray(res) ? res : [];
         if (!mounted) return;
         setExams(items);
-        if (!examId && items.length) setExamId(String(items[0].id));
+        if (deepLink?.examId && items.some((x) => String(x?.id) === String(deepLink.examId))) {
+          setExamId(String(deepLink.examId));
+        } else if (!examId && items.length) {
+          setExamId(String(items[0].id));
+        }
       } catch (_) {
         if (!mounted) return;
         setExams([]);
@@ -468,7 +534,7 @@ export default function ResultsResultCard() {
       }
     })();
     return () => { mounted = false; };
-  }, [selectedClass, examId]);
+  }, [selectedClass, examId, deepLink?.examId]);
 
   useEffect(() => {
     let mounted = true;
@@ -484,7 +550,11 @@ export default function ResultsResultCard() {
         const list = Array.isArray(res?.rows) ? res.rows : Array.isArray(res) ? res : [];
         if (!mounted) return;
         setStudentsInClass(list);
-        if (!studentId && list.length) setStudentId(String(list[0].id));
+        if (deepLink?.studentId && list.some((x) => String(x?.id) === String(deepLink.studentId))) {
+          setStudentId(String(deepLink.studentId));
+        } else if (!studentId && list.length) {
+          setStudentId(String(list[0].id));
+        }
       } catch (_) {
         if (!mounted) return;
         setStudentsInClass([]);
@@ -494,7 +564,7 @@ export default function ResultsResultCard() {
       }
     })();
     return () => { mounted = false; };
-  }, [selectedClass, studentId]);
+  }, [selectedClass, studentId, deepLink?.studentId]);
 
   const loadResultCard = useCallback(async () => {
     if (!studentId || !examId) {
@@ -778,13 +848,13 @@ export default function ResultsResultCard() {
 
             <Heading size='sm' color={textColor} mb='10px'>Edit Marks</Heading>
             <Box overflowX='auto'>
-              <Table variant='simple'>
+              <Table variant='simple' sx={{ tableLayout: 'fixed' }}>
                 <Thead>
                   <Tr>
-                    <Th>Subject</Th>
-                    <Th isNumeric>Full</Th>
-                    <Th isNumeric>Obtained</Th>
-                    <Th>Grade</Th>
+                    <Th w='42%'>Subject</Th>
+                    <Th isNumeric w='14%'>Full</Th>
+                    <Th isNumeric w='24%'>Obtained</Th>
+                    <Th w='20%'>Grade</Th>
                   </Tr>
                 </Thead>
                 <Tbody>
@@ -793,19 +863,21 @@ export default function ResultsResultCard() {
                       <Td fontWeight='600'>{r.subject}</Td>
                       <Td isNumeric>{r.fullMarks ?? '—'}</Td>
                       <Td isNumeric>
-                        <NumberInput
-                          size='sm'
-                          maxW='120px'
-                          value={r.obtainedMarks ?? ''}
-                          onChange={(val) => {
-                            const n = val === '' ? null : Number(val);
-                            setRows((prev) => prev.map((x) => x.subject === r.subject ? ({ ...x, obtainedMarks: Number.isFinite(n) ? n : null }) : x));
-                          }}
-                          min={0}
-                          max={r.fullMarks ?? 999}
-                        >
-                          <NumberInputField />
-                        </NumberInput>
+                        <Flex justify='flex-end'>
+                          <NumberInput
+                            size='sm'
+                            maxW='120px'
+                            value={r.obtainedMarks ?? ''}
+                            onChange={(val) => {
+                              const n = val === '' ? null : Number(val);
+                              setRows((prev) => prev.map((x) => x.subject === r.subject ? ({ ...x, obtainedMarks: Number.isFinite(n) ? n : null }) : x));
+                            }}
+                            min={0}
+                            max={r.fullMarks ?? 999}
+                          >
+                            <NumberInputField />
+                          </NumberInput>
+                        </Flex>
                       </Td>
                       <Td>
                         <Input
