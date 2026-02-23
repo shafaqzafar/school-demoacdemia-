@@ -208,9 +208,14 @@ const AddTeacher = () => {
   }, [resetForm, toast]);
 
   const handleError = useCallback((error) => {
+    const vErrors = Array.isArray(error?.data?.errors) ? error.data.errors : [];
+    const first = vErrors[0];
+    const details = first
+      ? `${first.param ? `${first.param}: ` : ''}${first.msg || 'Invalid value'}`
+      : null;
     toast({
       title: 'Failed to add teacher',
-      description: error?.data?.message || error?.message || 'Something went wrong. Please try again.',
+      description: details || error?.data?.message || error?.message || 'Something went wrong. Please try again.',
       status: 'error',
       duration: 6000,
       isClosable: true,

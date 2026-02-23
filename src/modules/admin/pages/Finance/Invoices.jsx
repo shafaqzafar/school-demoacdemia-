@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Box, Flex, Heading, Text, SimpleGrid, Icon, Badge, Button, ButtonGroup,
   useColorModeValue, Table, Thead, Tbody, Tr, Th, Td, Select, Input,
@@ -16,9 +16,11 @@ import UserSelector from './components/UserSelector';
 import NoUsersWarning, { UserRequiredNotice } from './components/NoUsersWarning';
 import { useFinanceUsers, useUnifiedInvoices } from '../../../../hooks/useFinanceUsers';
 import { financeApi } from '../../../../services/financeApi';
+import { useLocation } from 'react-router-dom';
 
 export default function Invoices() {
   const toast = useToast();
+  const location = useLocation();
   const textColorSecondary = useColorModeValue('gray.600', 'gray.400');
 
   // State
@@ -49,6 +51,31 @@ export default function Invoices() {
   });
   const [creating, setCreating] = useState(false);
   const [formError, setFormError] = useState('');
+
+  useEffect(() => {
+    const prefill = location?.state?.prefillInvoice;
+    if (!prefill) return;
+
+    const userType = String(prefill.userType || 'student');
+    const user = prefill.user && prefill.user.id ? prefill.user : (prefill.userId ? { id: prefill.userId, name: prefill.userName || 'Selected User' } : null);
+    const amount = Number(prefill.amount ?? 0) || 0;
+    const invoiceType = String(prefill.invoiceType || 'fee');
+
+    setCreateForm((prev) => ({
+      ...prev,
+      userType,
+      user,
+      amount,
+      invoiceType,
+      description: String(prefill.description || prev.description || ''),
+    }));
+    setFormError('');
+    if (!createDisc.isOpen) createDisc.onOpen();
+
+    try {
+      window.history.replaceState({}, document.title);
+    } catch (_) {}
+  }, [location, createDisc]);
 
   const [editForm, setEditForm] = useState({
     id: null,
@@ -541,6 +568,10 @@ export default function Invoices() {
                   {createForm.userType === 'student' ? (
                     <>
                       <option value='fee'>Fee</option>
+                      <option value='exam_fee'>Exam Fee</option>
+                      <option value='annual_fee'>Annual Fee</option>
+                      <option value='admission_fee'>Admission Fee</option>
+                      <option value='transport_fee'>Transport Fee</option>
                       <option value='other'>Other</option>
                     </>
                   ) : (

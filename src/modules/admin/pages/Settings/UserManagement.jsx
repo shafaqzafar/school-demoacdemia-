@@ -33,6 +33,12 @@ export default function UserManagement() {
   const editDisc = useDisclosure();
   const deleteDisc = useDisclosure();
   const textColorSecondary = useColorModeValue('gray.600', 'gray.400');
+  const theadBg = useColorModeValue('gray.50', 'gray.800');
+  const lookupInputBg = useColorModeValue('gray.50', 'gray.700');
+  const lookupDropdownBg = useColorModeValue('white', 'navy.800');
+  const lookupDropdownBorderColor = useColorModeValue('gray.100', 'whiteAlpha.200');
+  const lookupItemBorderColor = useColorModeValue('gray.100', 'whiteAlpha.100');
+  const lookupItemHoverBg = useColorModeValue('blue.50', 'whiteAlpha.200');
   const toast = useToast();
 
   // Form state for creating new user
@@ -270,7 +276,7 @@ export default function UserManagement() {
             <Center p={10}><Spinner size='xl' /></Center>
           ) : (
             <Table variant='simple'>
-              <Thead bg={useColorModeValue('gray.50', 'gray.800')}>
+              <Thead bg={theadBg}>
                 <Tr>
                   <Th>Name</Th>
                   <Th>Username</Th>
@@ -322,7 +328,7 @@ export default function UserManagement() {
                       placeholder={`Search ${roleDisplayMap[formData.role]} by name...`}
                       value={lookupQuery}
                       onChange={(e) => setLookupQuery(e.target.value)}
-                      bg={useColorModeValue('gray.50', 'gray.700')}
+                      bg={lookupInputBg}
                     />
                     {lookupLoading && <InputRightElement><Spinner size="sm" color='blue.500' /></InputRightElement>}
                   </InputGroup>
@@ -333,14 +339,14 @@ export default function UserManagement() {
                 {lookupResults.length > 0 && (
                   <Box
                     position="absolute" top="75px" left={0} right={0} zIndex={100}
-                    bg={useColorModeValue('white', 'navy.800')}
+                    bg={lookupDropdownBg}
                     boxShadow="xl" borderRadius="md" maxHeight="200px" overflowY="auto"
-                    border="1px solid" borderColor={useColorModeValue('gray.100', 'whiteAlpha.200')}
+                    border="1px solid" borderColor={lookupDropdownBorderColor}
                   >
                     {lookupResults.map((item) => (
                       <Box
-                        key={item.id} p={3} borderBottom="1px solid" borderColor={useColorModeValue('gray.100', 'whiteAlpha.100')} cursor="pointer"
-                        _hover={{ bg: useColorModeValue('blue.50', 'whiteAlpha.200') }}
+                        key={item.id} p={3} borderBottom="1px solid" borderColor={lookupItemBorderColor} cursor="pointer"
+                        _hover={{ bg: lookupItemHoverBg }}
                         onClick={() => selectEntity(item)}
                       >
                         <Text fontWeight="bold" fontSize="sm">{item.name}</Text>

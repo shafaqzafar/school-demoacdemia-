@@ -67,6 +67,8 @@ export default function Timetable() {
   const [autoSelect, setAutoSelect] = useState(false);
   const textColor = useColorModeValue('secondaryGray.900', 'white');
   const textColorSecondary = useColorModeValue('gray.600', 'gray.400');
+  const borderColor = useColorModeValue('gray.200', 'gray.700');
+  const hoverBg = useColorModeValue('gray.50', 'gray.700');
   const teacherOptions = useMemo(() => (
     (teachers || [])
       .map((t) => ({ id: String(t.id ?? t.teacherId), name: t.name || t.fullName || 'Unnamed Teacher' }))
@@ -563,7 +565,7 @@ export default function Timetable() {
       {/* Views */}
       {view === 'day' && (
         <Card>
-          <Flex p={4} borderBottomWidth={1} borderColor={useColorModeValue('gray.200', 'gray.700')} align="center" justify="space-between">
+          <Flex p={4} borderBottomWidth={1} borderColor={borderColor} align="center" justify="space-between">
             <Heading size="md">
               {cls} - Section {section} • {selectedDate.toDateString()}
             </Heading>
@@ -592,7 +594,7 @@ export default function Timetable() {
         const weekDays = [...Array(7)].map((_, i) => { const t = new Date(monday); t.setDate(monday.getDate() + i); return t; });
         return (
           <Card overflow="hidden">
-            <Heading size="md" p={4} borderBottomWidth={1} borderColor={useColorModeValue('gray.200', 'gray.700')}>
+            <Heading size="md" p={4} borderBottomWidth={1} borderColor={borderColor}>
               {cls} - Section {section} • Week of {monday.toDateString()}
             </Heading>
             <Box overflowX="auto">
@@ -608,7 +610,7 @@ export default function Timetable() {
                     <GridItem><Text fontWeight="600">{dayName(dateObj)}<br /><Text as='span' fontWeight='400' color={textColorSecondary}>{fmt(dateObj)}</Text></Text></GridItem>
                     {periodLabels.map((p, i) => (
                       <GridItem key={`${fmt(dateObj)}-${p}`}>
-                        <Box role='group' position='relative' borderWidth="1px" borderRadius="md" p={3} textAlign="center" cursor='pointer' _hover={{ bg: useColorModeValue('gray.50', 'gray.700') }} onClick={() => { setSelectedDate(dateObj); openEditForDate(dateObj); }}>
+                        <Box role='group' position='relative' borderWidth="1px" borderRadius="md" p={3} textAlign="center" cursor='pointer' _hover={{ bg: hoverBg }} onClick={() => { setSelectedDate(dateObj); openEditForDate(dateObj); }}>
                           <Text>{getScheduleForDate(dateObj)[i] || '-'}</Text>
                           <IconButton aria-label={`Delete ${p}`} icon={<MdDelete />} size='xs' colorScheme='red' variant='ghost' position='absolute' top='4px' right='4px' opacity={0} _groupHover={{ opacity: 1 }} onClick={(e) => { e.stopPropagation(); deletePeriodForDate(dateObj, i); }} />
                         </Box>
@@ -624,7 +626,7 @@ export default function Timetable() {
 
       {view === 'month' && (
         <Card>
-          <Heading size="md" p={4} borderBottomWidth={1} borderColor={useColorModeValue('gray.200', 'gray.700')}>
+          <Heading size="md" p={4} borderBottomWidth={1} borderColor={borderColor}>
             {cls} - Section {section} • {selectedDate.toLocaleString(undefined, { month: 'long', year: 'numeric' })}
           </Heading>
           <Box p={4}>
@@ -634,7 +636,7 @@ export default function Timetable() {
               ))}
               {monthMatrix.map((week, wi) => week.map((d, i) => (
                 <GridItem key={`${wi}-${i}`}>
-                  <Box borderWidth='1px' borderRadius='md' p={2} h='90px' cursor='pointer' _hover={{ bg: useColorModeValue('gray.50', 'gray.700') }} onClick={() => { setSelectedDate(d); openEditForDate(d); }} opacity={d.getMonth() === selectedDate.getMonth() ? 1 : 0.5}>
+                  <Box borderWidth='1px' borderRadius='md' p={2} h='90px' cursor='pointer' _hover={{ bg: hoverBg }} onClick={() => { setSelectedDate(d); openEditForDate(d); }} opacity={d.getMonth() === selectedDate.getMonth() ? 1 : 0.5}>
                     <Text fontSize='sm' fontWeight='600'>{d.getDate()}</Text>
                     <Text color={textColorSecondary} fontSize='xs' mt={1}>{getScheduleForDate(d).filter(Boolean).length} periods</Text>
                   </Box>
@@ -644,8 +646,6 @@ export default function Timetable() {
           </Box>
         </Card>
       )}
-
-      {/* Edit Modal */}
       <Modal isOpen={editDisc.isOpen} onClose={editDisc.onClose} size='lg'>
         <ModalOverlay />
         <ModalContent>

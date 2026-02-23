@@ -2,6 +2,7 @@ import * as teachers from '../services/teachers.service.js';
 import { query } from '../config/db.js';
 import bcrypt from 'bcryptjs';
 import * as authSvc from '../services/auth.service.js';
+import { ensureAuthSchema } from '../db/autoMigrate.js';
 
 const coerceString = (value) => {
   if (value === undefined) return undefined;
@@ -254,6 +255,7 @@ export const getSchedule = async (req, res, next) => {
 
 export const create = async (req, res, next) => {
   try {
+    try { await ensureAuthSchema(); } catch (_) {}
     const payload = normalizeTeacherPayload(req.body, { partial: false });
     let credentials = null;
     // Auto-provision user account if not already linked

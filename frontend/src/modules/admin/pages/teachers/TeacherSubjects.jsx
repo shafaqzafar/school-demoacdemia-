@@ -69,18 +69,7 @@ import {
   MdVisibility,
 } from 'react-icons/md';
 import * as teacherApi from '../../../../services/api/teachers';
-
-const classOptions = [
-  { id: '10A', name: '10th Grade Section A' },
-  { id: '10B', name: '10th Grade Section B' },
-  { id: '10C', name: '10th Grade Section C' },
-  { id: '11A', name: '11th Grade Section A' },
-  { id: '11B', name: '11th Grade Section B' },
-  { id: '11C', name: '11th Grade Section C' },
-  { id: '12A', name: '12th Grade Section A' },
-  { id: '12B', name: '12th Grade Section B' },
-  { id: '12C', name: '12th Grade Section C' },
-];
+import * as classesApi from '../../../../services/api/classes';
 
 const initialSubjectForm = {
   name: '',
@@ -131,6 +120,8 @@ const TeacherSubjects = () => {
   const [teachers, setTeachers] = useState([]);
   const [subjects, setSubjects] = useState([]);
   const [assignments, setAssignments] = useState([]);
+  const [classSections, setClassSections] = useState([]);
+  const [classLoading, setClassLoading] = useState(false);
   const [teacherLoading, setTeacherLoading] = useState(false);
   const [subjectLoading, setSubjectLoading] = useState(false);
   const [assignmentLoading, setAssignmentLoading] = useState(false);
@@ -153,6 +144,35 @@ const TeacherSubjects = () => {
   const borderColor = useColorModeValue('gray.200', 'gray.600');
   const hoverBg = useColorModeValue('gray.50', 'gray.700');
 
+  const toClassValue = useCallback((row) => {
+    if (!row) return '';
+    const className = row.className ?? row.class_name ?? row.class ?? row.name;
+    const section = row.section ?? row.sectionName;
+    if (!className && !section) return '';
+    if (className && section) return `${className}-${section}`;
+    return String(className || section);
+  }, []);
+
+  const toClassLabel = useCallback((row) => {
+    if (!row) return '—';
+    const className = row.className ?? row.class_name ?? row.class ?? row.name;
+    const section = row.section ?? row.sectionName;
+    const academicYear = row.academicYear ?? row.academic_year;
+    const base = [className, section].filter(Boolean).join(' ');
+    const year = academicYear ? ` (${academicYear})` : '';
+    return `${base || toClassValue(row) || '—'}${year}`;
+  }, [toClassValue]);
+
+  const classOptions = useMemo(() => {
+    const rows = Array.isArray(classSections) ? classSections : [];
+    return rows
+      .map((row) => ({
+        value: toClassValue(row),
+        label: toClassLabel(row),
+      }))
+      .filter((opt) => opt.value);
+  }, [classSections, toClassLabel, toClassValue]);
+
   const fetchTeachers = useCallback(async () => {
     setTeacherLoading(true);
     try {
@@ -171,6 +191,27 @@ const TeacherSubjects = () => {
       });
     } finally {
       setTeacherLoading(false);
+    }
+  }, [toast]);
+
+  const fetchClasses = useCallback(async () => {
+    setClassLoading(true);
+    try {
+      const response = await classesApi.list({ page: 1, pageSize: 200 });
+      const rows = Array.isArray(response?.rows) ? response.rows : Array.isArray(response) ? response : [];
+      setClassSections(rows);
+    } catch (error) {
+      console.error(error);
+      setClassSections([]);
+      toast({
+        title: 'Failed to load classes',
+        description: error?.message || 'Please try again later.',
+        status: 'error',
+        duration: 4000,
+        isClosable: true,
+      });
+    } finally {
+      setClassLoading(false);
     }
   }, [toast]);
 
@@ -222,6 +263,10 @@ const TeacherSubjects = () => {
     fetchSubjects();
     fetchAssignments();
   }, [fetchSubjects, fetchAssignments]);
+
+  useEffect(() => {
+    fetchClasses();
+  }, [fetchClasses]);
 
   useEffect(() => {
     if (!subjectDetailsDisclosure.isOpen || !activeSubject) return;
@@ -898,9 +943,15 @@ const TeacherSubjects = () => {
                         onChange={(values) => setAssignmentForm((prev) => ({ ...prev, classes: values }))}
                       >
                         <SimpleGrid columns={{ base: 1, md: 2 }} spacing={2}>
-                          {classOptions.map((cls) => (
-                            <Checkbox key={cls.id} value={cls.id}>
-                              {cls.id} ({cls.name})
+                          {classLoading && (
+                            <Flex align="center" gap={2}>
+                              <Spinner size="sm" />
+                              <Text color={textColorSecondary} fontSize="sm">Loading classes...</Text>
+                            </Flex>
+                          )}
+                          {!classLoading && classOptions.map((opt) => (
+                            <Checkbox key={opt.value} value={opt.value}>
+                              {opt.label}
                             </Checkbox>
                           ))}
                         </SimpleGrid>

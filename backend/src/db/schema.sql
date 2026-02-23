@@ -214,8 +214,59 @@ CREATE INDEX IF NOT EXISTS idx_syllabus_class ON syllabus_items (class_name, sec
 CREATE INDEX IF NOT EXISTS idx_syllabus_subject ON syllabus_items (subject);
 CREATE INDEX IF NOT EXISTS idx_syllabus_teacher ON syllabus_items (teacher_id);
 
-UPDATE teachers SET subjects = '[]'::jsonb WHERE subjects IS NULL;
-UPDATE teachers SET classes = '[]'::jsonb WHERE classes IS NULL;
+-- Fix: convert subjects/classes from varchar[] to jsonb if they were created by old Sequelize migrations
+DO $$
+BEGIN
+  -- Convert subjects column from varchar[] to jsonb if needed
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'teachers'
+      AND column_name = 'subjects'
+      AND data_type = 'ARRAY'
+  ) THEN
+    -- Drop existing default first to avoid: default cannot be cast automatically to type jsonb
+    BEGIN
+      EXECUTE 'ALTER TABLE teachers ALTER COLUMN subjects DROP DEFAULT';
+    EXCEPTION WHEN others THEN
+      NULL;
+    END;
+    EXECUTE 'ALTER TABLE teachers ALTER COLUMN subjects TYPE JSONB USING to_jsonb(subjects)';
+    EXECUTE 'ALTER TABLE teachers ALTER COLUMN subjects SET DEFAULT ''[]''::jsonb';
+  END IF;
+
+  -- Convert classes column from varchar[] to jsonb if needed
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'teachers'
+      AND column_name = 'classes'
+      AND data_type = 'ARRAY'
+  ) THEN
+    BEGIN
+      EXECUTE 'ALTER TABLE teachers ALTER COLUMN classes DROP DEFAULT';
+    EXCEPTION WHEN others THEN
+      NULL;
+    END;
+    EXECUTE 'ALTER TABLE teachers ALTER COLUMN classes TYPE JSONB USING to_jsonb(classes)';
+    EXECUTE 'ALTER TABLE teachers ALTER COLUMN classes SET DEFAULT ''[]''::jsonb';
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  -- Only run these updates when the columns are jsonb (otherwise it errors on legacy array types)
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'teachers' AND column_name = 'subjects' AND data_type = 'jsonb'
+  ) THEN
+    EXECUTE 'UPDATE teachers SET subjects = ''[]''::jsonb WHERE subjects IS NULL';
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'teachers' AND column_name = 'classes' AND data_type = 'jsonb'
+  ) THEN
+    EXECUTE 'UPDATE teachers SET classes = ''[]''::jsonb WHERE classes IS NULL';
+  END IF;
+END $$;
 
 UPDATE teachers SET status = 'active' WHERE status IS NULL;
 
@@ -918,7 +969,7 @@ CREATE TABLE IF NOT EXISTS finance_invoices (
   invoice_number TEXT UNIQUE,
   user_type TEXT NOT NULL CHECK (user_type IN ('student','teacher','driver')),
   user_id INTEGER NOT NULL,
-  invoice_type TEXT NOT NULL CHECK (invoice_type IN ('fee','salary','allowance','deduction','other')),
+  invoice_type TEXT NOT NULL CHECK (invoice_type IN ('fee','exam_fee','annual_fee','admission_fee','transport_fee','salary','allowance','deduction','other')),
   description TEXT,
   amount NUMERIC(12,2) NOT NULL,
   tax NUMERIC(12,2) DEFAULT 0,
@@ -927,9 +978,10 @@ CREATE TABLE IF NOT EXISTS finance_invoices (
   balance NUMERIC(12,2) NOT NULL,
   status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','partial','paid','overdue','cancelled')),
   due_date DATE,
-  period_month DATE,
+  period_month TEXT,
   issued_at TIMESTAMP NOT NULL DEFAULT NOW(),
-  created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_by INTEGER,
+  campus_id INTEGER REFERENCES campuses(id) ON DELETE SET NULL,
   created_at TIMESTAMP NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMP NOT NULL DEFAULT NOW()
 );

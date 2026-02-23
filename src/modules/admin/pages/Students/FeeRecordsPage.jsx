@@ -31,6 +31,7 @@ import { getStatusColor } from '../../../../utils/helpers';
 export default function FeeRecordsPage() {
   const toast = useToast();
   const navigate = useNavigate();
+
   const { isOpen, onOpen, onClose } = useDisclosure();
   const addModal = useDisclosure();
   const [students, setStudents] = useState([]);
@@ -184,6 +185,7 @@ export default function FeeRecordsPage() {
   const handlePrint = () => window.print();
 
   const totals = fees.totals || { totalInvoiced: 0, totalPaid: 0, totalOutstanding: 0 };
+  const selectedStudent = students.find((s) => String(s.id) === String(selectedId)) || null;
 
   return (
     <Box pt={{ base: '130px', md: '80px', xl: '80px' }}>
@@ -205,6 +207,26 @@ export default function FeeRecordsPage() {
           </Select>
           <ButtonGroup>
             <Button onClick={addModal.onOpen} colorScheme='blue'>Add Invoice</Button>
+            <Button
+              variant='outline'
+              onClick={() => {
+                if (!selectedId) return;
+                navigate('/admin/finance/invoices', {
+                  state: {
+                    prefillInvoice: {
+                      userType: 'student',
+                      userId: Number(selectedId),
+                      user: selectedStudent ? { id: selectedStudent.id, name: selectedStudent.name, class: selectedStudent.class, section: selectedStudent.section, rollNumber: selectedStudent.roll_number || selectedStudent.rollNumber } : null,
+                      amount: Number(totals.totalOutstanding || 0),
+                      invoiceType: 'fee',
+                    },
+                  },
+                });
+              }}
+              isDisabled={!selectedId}
+            >
+              Create Invoice
+            </Button>
             <Button variant='outline' onClick={refresh} isLoading={busy}>Refresh</Button>
             <Button variant='outline' onClick={exportCSV}>Export</Button>
             <Button variant='outline' onClick={handlePrint}>Print</Button>

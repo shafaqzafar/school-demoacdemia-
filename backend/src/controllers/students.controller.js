@@ -2,7 +2,7 @@ import * as students from '../services/students.service.js';
 import bcrypt from 'bcryptjs';
 import * as authSvc from '../services/auth.service.js';
 import cloudinary from '../config/cloudinary.js';
-import { ensureStudentExtendedColumns, ensureFinanceConstraints, ensureParentsSchema } from '../db/autoMigrate.js';
+import { ensureAuthSchema, ensureStudentExtendedColumns, ensureFinanceConstraints, ensureParentsSchema } from '../db/autoMigrate.js';
 import * as parentsSvc from '../services/parents.service.js';
 import { upsertParentUserForPhone } from '../services/auth.service.js';
 import * as teachersSvc from '../services/teachers.service.js';
@@ -78,6 +78,7 @@ export const getById = async (req, res, next) => {
 
 export const create = async (req, res, next) => {
   try {
+    try { await ensureAuthSchema(); } catch (_) {}
     await ensureStudentExtendedColumns();
     await ensureParentsSchema();
     const payload = { ...req.body };
