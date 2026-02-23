@@ -41,6 +41,9 @@ function ParentInfoForm() {
   const [showParentPwd2, setShowParentPwd2] = React.useState(false);
   const [showGuardianPwd, setShowGuardianPwd] = React.useState(false);
   const [showGuardianPwd2, setShowGuardianPwd2] = React.useState(false);
+
+  const digitsOnly = (s) => String(s || '').replace(/\D/g, '');
+  const clampDigits = (s, maxLen) => digitsOnly(s).slice(0, maxLen);
   
   // Handle father information changes
   const handleFatherChange = (field, value) => {
@@ -171,8 +174,10 @@ function ParentInfoForm() {
                 <FormLabel>Father's CNIC</FormLabel>
                 <Input
                   value={father.cnic || ''}
-                  onChange={(e) => handleFatherChange('cnic', e.target.value)}
+                  onChange={(e) => handleFatherChange('cnic', clampDigits(e.target.value, 13))}
                   placeholder="00000-0000000-0"
+                  inputMode="numeric"
+                  maxLength={13}
                 />
               </FormControl>
             </SimpleGrid>
@@ -184,8 +189,10 @@ function ParentInfoForm() {
                   <InputLeftAddon>+92</InputLeftAddon>
                   <Input
                     value={father.phone || ''}
-                    onChange={(e) => handleFatherChange('phone', e.target.value)}
+                    onChange={(e) => handleFatherChange('phone', clampDigits(e.target.value, 11))}
                     placeholder="300 1234567"
+                    inputMode="numeric"
+                    maxLength={11}
                   />
                 </InputGroup>
               </FormControl>
@@ -290,8 +297,10 @@ function ParentInfoForm() {
                 <FormLabel>Mother's CNIC</FormLabel>
                 <Input
                   value={mother.cnic || ''}
-                  onChange={(e) => handleMotherChange('cnic', e.target.value)}
+                  onChange={(e) => handleMotherChange('cnic', clampDigits(e.target.value, 13))}
                   placeholder="00000-0000000-0"
+                  inputMode="numeric"
+                  maxLength={13}
                 />
               </FormControl>
             </SimpleGrid>
@@ -303,8 +312,10 @@ function ParentInfoForm() {
                   <InputLeftAddon>+92</InputLeftAddon>
                   <Input
                     value={mother.phone || ''}
-                    onChange={(e) => handleMotherChange('phone', e.target.value)}
+                    onChange={(e) => handleMotherChange('phone', clampDigits(e.target.value, 11))}
                     placeholder="300 1234567"
+                    inputMode="numeric"
+                    maxLength={11}
                   />
                 </InputGroup>
               </FormControl>
@@ -397,8 +408,10 @@ function ParentInfoForm() {
                       <InputLeftAddon>+92</InputLeftAddon>
                       <Input
                         value={guardian.phone || ''}
-                        onChange={(e) => handleGuardianChange('phone', e.target.value)}
+                        onChange={(e) => handleGuardianChange('phone', clampDigits(e.target.value, 11))}
                         placeholder="300 1234567"
+                        inputMode="numeric"
+                        maxLength={11}
                       />
                     </InputGroup>
                   </FormControl>
@@ -407,8 +420,10 @@ function ParentInfoForm() {
                     <FormLabel>Guardian's CNIC</FormLabel>
                     <Input
                       value={guardian.cnic || ''}
-                      onChange={(e) => handleGuardianChange('cnic', e.target.value)}
+                      onChange={(e) => handleGuardianChange('cnic', clampDigits(e.target.value, 13))}
                       placeholder="00000-0000000-0"
+                      inputMode="numeric"
+                      maxLength={13}
                     />
                   </FormControl>
                 </SimpleGrid>
@@ -524,8 +539,10 @@ function ParentInfoForm() {
                   <InputLeftAddon>+92</InputLeftAddon>
                   <Input
                     value={emergency.phone || ''}
-                    onChange={(e) => handleEmergencyChange('phone', e.target.value)}
+                    onChange={(e) => handleEmergencyChange('phone', clampDigits(e.target.value, 11))}
                     placeholder="300 1234567"
+                    inputMode="numeric"
+                    maxLength={11}
                   />
                 </InputGroup>
               </FormControl>
@@ -536,8 +553,10 @@ function ParentInfoForm() {
                   <InputLeftAddon>+92</InputLeftAddon>
                   <Input
                     value={emergency.alternatePhone || ''}
-                    onChange={(e) => handleEmergencyChange('alternatePhone', e.target.value)}
+                    onChange={(e) => handleEmergencyChange('alternatePhone', clampDigits(e.target.value, 11))}
                     placeholder="300 1234567"
+                    inputMode="numeric"
+                    maxLength={11}
                   />
                 </InputGroup>
               </FormControl>

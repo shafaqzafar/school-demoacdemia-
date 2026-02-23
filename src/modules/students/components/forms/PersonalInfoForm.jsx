@@ -48,8 +48,11 @@ const toDateInputValue = (value) => {
 function PersonalInfoForm() {
   const dispatch = useAppDispatch();
   const formData = useAppSelector(selectStudentFormData);
-  const personalInfo = formData.personal;
-  
+  const personalInfo = formData.personal || {};
+
+  const digitsOnly = (s) => String(s || '').replace(/\D/g, '');
+  const clampDigits = (s, maxLen) => digitsOnly(s).slice(0, maxLen);
+
   // Local state for photo
   const [photoUrl, setPhotoUrl] = useState(personalInfo.photo || '');
   
@@ -233,8 +236,10 @@ function PersonalInfoForm() {
           <FormLabel>CNIC/B-Form</FormLabel>
           <Input
             value={personalInfo.cnic || ''}
-            onChange={(e) => handleInputChange('cnic', e.target.value)}
+            onChange={(e) => handleInputChange('cnic', clampDigits(e.target.value, 13))}
             placeholder="00000-0000000-0"
+            inputMode="numeric"
+            maxLength={13}
           />
           <FormHelperText>
             Format: 12345-1234567-1
@@ -260,8 +265,10 @@ function PersonalInfoForm() {
             <Input
               type="tel"
               value={personalInfo.phone || ''}
-              onChange={(e) => handleInputChange('phone', e.target.value)}
+              onChange={(e) => handleInputChange('phone', clampDigits(e.target.value, 11))}
               placeholder="300 1234567"
+              inputMode="numeric"
+              maxLength={11}
             />
           </InputGroup>
         </FormControl>

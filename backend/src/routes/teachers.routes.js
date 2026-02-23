@@ -10,6 +10,8 @@ const attendanceStatuses = ['present', 'absent', 'late'];
 const payrollStatuses = ['pending', 'processing', 'paid', 'failed', 'cancelled'];
 const timePattern = /^([01]\d|2[0-3]):[0-5]\d(?:[:][0-5]\d)?$/;
 const monthPattern = /^\d{4}-\d{2}$/;
+ const phone11DigitsPattern = /^\d{11}$/;
+ const cnic13DigitsPattern = /^\d{13}$/;
 
 router.get(
   '/',
@@ -47,14 +49,24 @@ const sharedOptionalValidators = [
   optionalString('iban'),
   optionalString('bloodGroup'),
   optionalString('religion'),
-  optionalString('nationalId'),
+  body('nationalId')
+    .optional({ checkFalsy: true })
+    .isString()
+    .trim()
+    .matches(cnic13DigitsPattern)
+    .withMessage('nationalId must be exactly 13 digits'),
   optionalString('address1'),
   optionalString('address2'),
   optionalString('city'),
   optionalString('state'),
   optionalString('postalCode'),
   optionalString('emergencyName'),
-  optionalString('emergencyPhone'),
+  body('emergencyPhone')
+    .optional({ checkFalsy: true })
+    .isString()
+    .trim()
+    .matches(phone11DigitsPattern)
+    .withMessage('emergencyPhone must be exactly 11 digits'),
   optionalString('emergencyRelation'),
   optionalString('avatar'),
 ];
@@ -62,7 +74,12 @@ const sharedOptionalValidators = [
 const createTeacherValidators = [
   body('name').isString().trim().notEmpty(),
   body('email').optional({ checkFalsy: true }).isEmail().normalizeEmail(),
-  body('phone').isString().trim().notEmpty(),
+  body('phone')
+    .isString()
+    .trim()
+    .notEmpty()
+    .matches(phone11DigitsPattern)
+    .withMessage('phone must be exactly 11 digits'),
   body('qualification').isString().trim().notEmpty(),
   body('employmentType').isIn(['fullTime', 'partTime']),
   body('employmentStatus').optional({ checkFalsy: true }).isIn(['active', 'inactive', 'on_leave', 'resigned']),
@@ -83,7 +100,13 @@ const createTeacherValidators = [
 const updateTeacherValidators = [
   body('name').optional({ nullable: true }).isString().trim().notEmpty(),
   body('email').optional({ nullable: true }).isEmail().normalizeEmail(),
-  body('phone').optional({ nullable: true }).isString().trim().notEmpty(),
+  body('phone')
+    .optional({ nullable: true })
+    .isString()
+    .trim()
+    .notEmpty()
+    .matches(phone11DigitsPattern)
+    .withMessage('phone must be exactly 11 digits'),
   body('qualification').optional({ checkFalsy: true }).isString().trim().notEmpty(),
   body('employmentType').optional({ checkFalsy: true }).isIn(['fullTime', 'partTime']),
   body('joiningDate').optional({ checkFalsy: true }).isISO8601(),

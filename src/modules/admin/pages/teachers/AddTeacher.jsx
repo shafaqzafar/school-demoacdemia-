@@ -261,6 +261,41 @@ const AddTeacher = () => {
   }, [resetForm, toast]);
 
   const handleError = useCallback((error) => {
+    const apiErrors = Array.isArray(error?.data?.errors) ? error.data.errors : null;
+    if (apiErrors && apiErrors.length) {
+      const mapped = {};
+      apiErrors.forEach((e) => {
+        const key = e?.param;
+        const msg = e?.msg;
+        if (key && msg && !mapped[key]) mapped[key] = msg;
+      });
+
+      // Map backend field paths to our form field names
+      const remap = {
+        nationalId: 'nationalId',
+        phone: 'phone',
+        emergencyPhone: 'emergencyPhone',
+      };
+      const nextErrors = {};
+      Object.entries(mapped).forEach(([k, v]) => {
+        if (remap[k]) nextErrors[remap[k]] = v;
+      });
+      if (Object.keys(nextErrors).length) {
+        setErrors((prev) => ({ ...prev, ...nextErrors }));
+      }
+
+      const details = apiErrors
+        .map((e) => `${e.param}: ${e.msg}`)
+        .join('; ');
+      toast({
+        title: 'Failed to add teacher',
+        description: details,
+        status: 'error',
+        duration: 8000,
+        isClosable: true,
+      });
+      return;
+    }
     toast({
       title: 'Failed to add teacher',
       description: error?.data?.message || error?.message || 'Something went wrong. Please try again.',
@@ -296,6 +331,16 @@ const AddTeacher = () => {
     setFormData((prev) => ({ ...prev, [name]: value }));
 
     // Clear error when field is modified
+    if (errors[name]) {
+      setErrors((prev) => ({ ...prev, [name]: null }));
+    }
+  };
+
+  const digitsOnly = (s) => String(s || '').replace(/\D/g, '');
+
+  const handleDigitsChange = (name, maxLen) => (e) => {
+    const only = digitsOnly(e.target.value).slice(0, maxLen);
+    setFormData((prev) => ({ ...prev, [name]: only }));
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: null }));
     }
@@ -531,7 +576,14 @@ const AddTeacher = () => {
                   </FormControl>
                   <FormControl isInvalid={errors.phone}>
                     <FormLabel>Phone Number</FormLabel>
-                    <Input name="phone" value={formData.phone} onChange={handleChange} placeholder="Enter phone number" />
+                    <Input
+                      name="phone"
+                      value={formData.phone}
+                      onChange={handleDigitsChange('phone', 11)}
+                      placeholder="Enter 11-digit phone number"
+                      inputMode="numeric"
+                      maxLength={11}
+                    />
                     {errors.phone && <FormErrorMessage>{errors.phone}</FormErrorMessage>}
                   </FormControl>
                   <FormControl isInvalid={errors.qualification}>
@@ -570,7 +622,14 @@ const AddTeacher = () => {
                   </FormControl>
                   <FormControl>
                     <FormLabel>National ID</FormLabel>
-                    <Input name='nationalId' value={formData.nationalId} onChange={handleChange} placeholder='CNIC / National ID' />
+                    <Input
+                      name='nationalId'
+                      value={formData.nationalId}
+                      onChange={handleDigitsChange('nationalId', 13)}
+                      placeholder='CNIC (13 digits)'
+                      inputMode='numeric'
+                      maxLength={13}
+                    />
                   </FormControl>
                   <FormControl>
                     <FormLabel>Address Line 1</FormLabel>
@@ -599,9 +658,17 @@ const AddTeacher = () => {
                     <FormLabel>Contact Name</FormLabel>
                     <Input name='emergencyName' value={formData.emergencyName} onChange={handleChange} placeholder='Full name' />
                   </FormControl>
-                  <FormControl>
-                    <FormLabel>Phone</FormLabel>
-                    <Input name='emergencyPhone' value={formData.emergencyPhone} onChange={handleChange} placeholder='Phone number' />
+                  <FormControl isInvalid={errors.emergencyPhone}>
+                    <FormLabel>Emergency Phone</FormLabel>
+                    <Input
+                      name='emergencyPhone'
+                      value={formData.emergencyPhone}
+                      onChange={handleDigitsChange('emergencyPhone', 11)}
+                      placeholder='Emergency phone (11 digits)'
+                      inputMode='numeric'
+                      maxLength={11}
+                    />
+                    {errors.emergencyPhone && <FormErrorMessage>{errors.emergencyPhone}</FormErrorMessage>}
                   </FormControl>
                   <FormControl>
                     <FormLabel>Relation</FormLabel>

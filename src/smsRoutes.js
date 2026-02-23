@@ -14,7 +14,7 @@ export const adminRoutes = [
   },
   {
     path: 'students/add',
-    component: lazy(() => import('./modules/admin/pages/Students/AddStudent')),
+    component: lazy(() => import('./modules/students/AddStudent')),
   },
   {
     path: 'students/edit/:id',
